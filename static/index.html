@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>智能航空压位任务管理系统</title>
+    <link rel="stylesheet" href="/static/styles.css?v=8" />
+  </head>
+  <body>
+    <div class="tool-window">
+      <header class="title-bar">
+        <div class="window-title">智能航空压位任务管理系统</div>
+        <div class="window-actions" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="功能导航">
+        <button data-view="config" type="button">配置管理</button>
+        <button class="active" data-view="tasks" type="button">压位任务</button>
+        <button data-view="pnr" type="button">PNR管理</button>
+        <div class="tabs-spacer"></div>
+        <span id="health" class="health-chip">连接中</span>
+        <button id="refreshBtn" class="text-button" type="button">刷新</button>
+      </nav>
+
+      <main class="content">
+        <section id="configView" class="view-page config-view hidden" data-view="config">
+          <div class="section-head">
+            <h1>配置管理</h1>
+            <span>本机执行配置</span>
+          </div>
+          <div class="config-grid">
+            <section class="config-block">
+              <h2>运行状态</h2>
+              <table class="config-table">
+                <tbody>
+                  <tr>
+                    <th>数据库</th>
+                    <td id="configDbPath">-</td>
+                  </tr>
+                  <tr>
+                    <th>并发</th>
+                    <td id="configRunner">-</td>
+                  </tr>
+                  <tr>
+                    <th>轮询间隔</th>
+                    <td id="configPoll">-</td>
+                  </tr>
+                  <tr>
+                    <th>任务数量</th>
+                    <td id="configTaskCount">-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            <section class="config-block">
+              <h2>Source 映射</h2>
+              <div id="configSources" class="source-grid"></div>
+            </section>
+            <section class="config-block proxy-config-block">
+              <div class="section-head compact-head">
+                <h2>数据源代理</h2>
+                <button id="proxyRefreshBtn" class="text-button" type="button">刷新配置</button>
+              </div>
+              <div class="proxy-table-wrap">
+                <table class="proxy-table">
+                  <thead>
+                    <tr>
+                      <th>Source</th>
+                      <th>启用</th>
+                      <th>代理 IP / Host</th>
+                      <th>端口</th>
+                      <th>用户名</th>
+                      <th>密码</th>
+                      <th>区域</th>
+                      <th>Session</th>
+                      <th>Format</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sourceProxyRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="tasksView" class="view-page tasks-view" data-view="tasks">
+        <section class="task-config">
+          <div class="page-title">
+            <div>
+              <p>Local SQLite Runner</p>
+              <h1>智能航空压位任务管理系统</h1>
+            </div>
+            <span>本地生成 · 本地发放 · 子任务执行</span>
+          </div>
+          <form id="taskForm" class="inline-form" novalidate>
+            <label>
+              <span>Source:</span>
+              <select id="source" required></select>
+            </label>
+            <label>
+              <span>出发地:</span>
+              <input id="depAirport" data-default="SZX" placeholder="SZX" />
+            </label>
+            <label>
+              <span>目的地:</span>
+              <input id="arrAirport" data-default="KUL" placeholder="KUL" />
+            </label>
+            <label>
+              <span>日期:</span>
+              <input id="depDate" data-default="2026-06-03" placeholder="2026-06-03" />
+            </label>
+            <label>
+              <span>航班号:</span>
+              <input id="flightNumber" data-default="AK127" placeholder="AK127" />
+            </label>
+            <label>
+              <span>舱位:</span>
+              <input id="cabin" data-default="L" placeholder="L" />
+            </label>
+            <label>
+              <span>查询延迟:</span>
+              <input id="intervalSeconds" data-default="30" type="number" min="1" placeholder="30" />
+            </label>
+            <label>
+              <span>预计延迟:</span>
+              <input id="bookRate" data-default="10" type="number" min="1" placeholder="10" />
+            </label>
+            <label>
+              <span>人数:</span>
+              <input id="passengerRange" data-default="1-1" placeholder="1-1" />
+            </label>
+            <label>
+              <span>PNR有效期:</span>
+              <input id="pnrValidMinutes" type="number" min="1" placeholder="分钟" />
+            </label>
+            <label class="checkbox-label">
+              <input id="usePassport" type="checkbox" checked />
+              <span>使用护照</span>
+            </label>
+            <button class="primary-action" type="submit">
+              <span class="btn-icon" aria-hidden="true">+</span>
+              添加任务
+            </button>
+
+            <input id="taskId" class="hidden-field" />
+            <input id="maxRuns" class="hidden-field" />
+            <input id="currencyCode" class="hidden-field" value="MYR" />
+            <input id="callData" class="hidden-field" />
+            <input id="callUrl" class="hidden-field" />
+          </form>
+
+          <details class="advanced-panel">
+            <summary>高级配置 / JSON 导入</summary>
+            <div class="advanced-content">
+              <div class="advanced-grid">
+                <label>
+                  <span>任务 ID</span>
+                  <input id="taskIdAdvanced" placeholder="留空自动生成" />
+                </label>
+                <label>
+                  <span>最多执行次数</span>
+                  <input id="maxRunsAdvanced" type="number" min="1" placeholder="留空持续执行" />
+                </label>
+                <label>
+                  <span>币种</span>
+                  <input id="currencyCodeAdvanced" placeholder="MYR" />
+                </label>
+                <label>
+                  <span>callUrl</span>
+                  <input id="callUrlAdvanced" placeholder="可空" />
+                </label>
+              </div>
+              <div class="json-tools">
+                <button id="syncJsonBtn" type="button">从表单生成 JSON</button>
+                <button id="importBtn" type="button">导入任务</button>
+              </div>
+              <div class="json-columns">
+                <textarea id="taskJson" spellcheck="false"></textarea>
+                <textarea id="importJson" spellcheck="false" placeholder='粘贴任务数组或 {"tasks":[...]}'></textarea>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section class="current-section">
+          <div class="section-head">
+            <h2>当前任务</h2>
+            <span id="taskCount">0 个任务</span>
+          </div>
+          <div class="task-table-wrap">
+            <table class="task-table">
+              <colgroup>
+                <col class="col-tree" />
+                <col class="col-task-id" />
+                <col class="col-airport" />
+                <col class="col-airport" />
+                <col class="col-date" />
+                <col class="col-flight" />
+                <col class="col-cabin" />
+                <col class="col-delay" />
+                <col class="col-delay" />
+                <col class="col-people" />
+                <col class="col-runs" />
+                <col class="col-status" />
+                <col class="col-passport" />
+                <col class="col-actions" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>任务/子任务</th>
+                  <th>任务 ID</th>
+                  <th>出发地</th>
+                  <th>目的地</th>
+                  <th>日期</th>
+                  <th>航班号</th>
+                  <th>舱位</th>
+                  <th>查询延迟</th>
+                  <th>预计延迟</th>
+                  <th>人数</th>
+                  <th>执行次数</th>
+                  <th>状态</th>
+                  <th>护照</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="taskRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="log-section">
+          <div class="log-head">
+            <span>Log Console</span>
+            <div>
+              <span id="selectedTask">未选择</span>
+              <button id="clearLogBtn" type="button">清空日志</button>
+            </div>
+          </div>
+          <div id="detailEmpty" class="log-empty">点击任务行查看执行详情。</div>
+          <div id="detailContent" class="log-content hidden">
+            <div class="log-summary">
+              <span>成功 <strong id="successCount">0</strong></span>
+              <span>失败 <strong id="failureCount">0</strong></span>
+              <span>间隔 <strong id="intervalInfo">-</strong></span>
+              <span>数据库 <strong id="dbInfo">-</strong></span>
+            </div>
+            <pre id="lastResult" class="result-box"></pre>
+            <table class="attempt-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>状态</th>
+                  <th>消息</th>
+                  <th>耗时</th>
+                  <th>完成时间</th>
+                </tr>
+              </thead>
+              <tbody id="attemptRows"></tbody>
+            </table>
+          </div>
+        </section>
+        </section>
+
+        <section id="pnrView" class="view-page pnr-view hidden" data-view="pnr">
+          <div class="section-head">
+            <h1>PNR管理</h1>
+            <span id="pnrCount">0 条</span>
+          </div>
+          <div class="pnr-toolbar">
+            <button id="pnrRefreshBtn" class="text-button" type="button">刷新 PNR</button>
+          </div>
+          <div class="task-table-wrap pnr-table-wrap">
+            <table class="pnr-table">
+              <colgroup>
+                <col class="pnr-col-pnr" />
+                <col class="pnr-col-task-id" />
+                <col class="pnr-col-source" />
+                <col class="pnr-col-flight" />
+                <col class="pnr-col-airport" />
+                <col class="pnr-col-airport" />
+                <col class="pnr-col-date" />
+                <col class="pnr-col-people" />
+                <col class="pnr-col-passengers" />
+                <col class="pnr-col-status" />
+                <col class="pnr-col-time" />
+                <col class="pnr-col-time" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>PNR</th>
+                  <th>任务 ID</th>
+                  <th>Source</th>
+                  <th>航班号</th>
+                  <th>出发地</th>
+                  <th>目的地</th>
+                  <th>日期</th>
+                  <th>人数</th>
+                  <th>乘机人</th>
+                  <th>状态</th>
+                  <th>产生时间</th>
+                  <th>到期时间</th>
+                </tr>
+              </thead>
+              <tbody id="pnrRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/static/app.js?v=18"></script>
+  </body>
+</html>

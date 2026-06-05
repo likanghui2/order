@@ -1,0 +1,22 @@
+[
+  {
+    "taskId": "local-5j-ceb-hkg-5j236",
+    "source": "5JWEB",
+    "taskType": "shamBooking",
+    "taskData": {
+      "depAirport": "CEB",
+      "arrAirport": "HKG",
+      "depDate": "20260529",
+      "flightNumber": "5J236",
+      "cabin": "",
+      "bookingConfig": {
+        "bookRate": 10,
+        "currencyCode": "PHP"
+      },
+      "callbackData": {
+        "callData": "",
+        "callUrl": ""
+      }
+    }
+  }
+]
