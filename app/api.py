@@ -277,10 +277,7 @@ def _build_pnr_rows(filters: dict[str, str]) -> list[dict[str, Any]]:
     seen: set[str] = set()
     rows: list[dict[str, Any]] = []
     now = time.time()
-    for event in store.list_pnr_candidate_events():
-        row = _pnr_row_from_event(event)
-        if not row:
-            continue
+    for row in store.list_pnr_records():
         key = f"{row['taskId']}:{row['pnr']}"
         if key in seen:
             continue
@@ -289,34 +286,6 @@ def _build_pnr_rows(filters: dict[str, str]) -> list[dict[str, Any]]:
             rows.append(row)
     rows.sort(key=lambda item: item.get("createdAt") or 0, reverse=True)
     return rows
-
-
-def _pnr_row_from_event(event: dict[str, Any]) -> Optional[dict[str, Any]]:
-    result = _as_dict(event.get("result"))
-    if _safe_int(result.get("status")) != 200:
-        return None
-    pnr = _extract_pnr(result)
-    if not pnr:
-        return None
-    task_data = _as_dict(event.get("task_data"))
-    created_at = float(event.get("event_at") or event.get("updated_at") or 0)
-    valid_minutes = _pnr_valid_minutes(task_data)
-    expires_at = created_at + valid_minutes * 60 if created_at and valid_minutes else 0
-    return {
-        "taskId": event.get("task_id") or "",
-        "pnr": pnr,
-        "source": event.get("source") or "",
-        "flightNumber": task_data.get("flightNumber") or "-",
-        "cabin": _extract_cabin(result),
-        "depAirport": task_data.get("depAirport") or "-",
-        "arrAirport": task_data.get("arrAirport") or "-",
-        "depDate": task_data.get("depDate") or "-",
-        "passengerCount": _extract_passenger_count(result) or "-",
-        "passengers": _extract_passenger_names(result),
-        "orderState": _as_dict(result.get("data")).get("orderState") or result.get("message") or "-",
-        "createdAt": created_at,
-        "expiresAt": expires_at,
-    }
 
 
 def _matches_pnr_filters(row: dict[str, Any], filters: dict[str, str], now: float) -> bool:
@@ -345,87 +314,6 @@ def _matches_pnr_filters(row: dict[str, Any], filters: dict[str, str], now: floa
     return True
 
 
-def _extract_pnr(result: dict[str, Any]) -> str:
-    data = _as_dict(result.get("data"))
-    return str(data.get("pnr") or result.get("pnr") or "").strip()
-
-
-def _extract_cabin(result: dict[str, Any]) -> str:
-    data = _as_dict(result.get("data"))
-    candidates: list[Any] = []
-    candidates.extend(_extract_cabins_from_journeys(data.get("journeys")))
-    candidates.extend(_extract_cabins_from_bundles(data.get("bundles")))
-    candidates.extend(_extract_cabins_from_segments(data.get("segments")))
-    candidates.extend(
-        [
-            data.get("cabin"),
-            _as_dict(data.get("reservation")).get("cabin"),
-            _as_dict(data.get("order")).get("cabin"),
-            _as_dict(data.get("booking")).get("cabin"),
-            result.get("cabin"),
-        ]
-    )
-    return next((cabin for cabin in (_normalize_cabin(item) for item in candidates) if cabin), "-")
-
-
-def _extract_cabins_from_journeys(journeys: Any) -> list[Any]:
-    cabins: list[Any] = []
-    for journey in _as_list(journeys):
-        journey_data = _as_dict(journey)
-        cabins.append(journey_data.get("cabin"))
-        cabins.extend(_extract_cabins_from_bundles(journey_data.get("bundles")))
-        cabins.extend(_extract_cabins_from_segments(journey_data.get("segments")))
-    return cabins
-
-
-def _extract_cabins_from_bundles(bundles: Any) -> list[Any]:
-    return [_as_dict(bundle).get("cabin") for bundle in _as_list(bundles)]
-
-
-def _extract_cabins_from_segments(segments: Any) -> list[Any]:
-    return [_as_dict(segment).get("cabin") for segment in _as_list(segments)]
-
-
-def _normalize_cabin(value: Any) -> str:
-    cabin = str(value or "").strip()
-    return cabin if cabin and cabin != "-" else ""
-
-
-def _extract_passengers(result: dict[str, Any]) -> list[Any]:
-    data = _as_dict(result.get("data"))
-    passengers = data.get("passengers") or result.get("passengers")
-    return passengers if isinstance(passengers, list) else []
-
-
-def _extract_passenger_count(result: dict[str, Any]) -> Optional[int]:
-    passengers = _extract_passengers(result)
-    return len(passengers) if passengers else None
-
-
-def _extract_passenger_names(result: dict[str, Any]) -> str:
-    names: list[str] = []
-    for passenger in _extract_passengers(result):
-        passenger_data = _as_dict(passenger)
-        joined = "/".join(
-            item
-            for item in [
-                str(passenger_data.get("lastName") or passenger_data.get("last_name") or "").strip(),
-                str(passenger_data.get("firstName") or passenger_data.get("first_name") or "").strip(),
-            ]
-            if item
-        )
-        name = joined or passenger_data.get("name") or passenger_data.get("passengerName") or ""
-        if name:
-            names.append(str(name))
-    return ", ".join(names) if names else "-"
-
-
-def _pnr_valid_minutes(task_data: dict[str, Any]) -> Optional[float]:
-    ext = _as_dict(task_data.get("ext"))
-    value = _safe_float(ext.get("pnrValidMinutes") or ext.get("pnrValidityMinutes") or ext.get("pnrValidMinute"))
-    return value if value and value > 0 else None
-
-
 def _pnr_expiry_state(expires_at: Any, now: float) -> str:
     expires_at_value = _safe_float(expires_at)
     if not expires_at_value:
@@ -442,21 +330,6 @@ def _format_dep_date(value: Any) -> str:
 
 def _contains(value: Any, query: str) -> bool:
     return str(query or "").lower() in str(value if value is not None else "").lower()
-
-
-def _as_dict(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
-def _as_list(value: Any) -> list[Any]:
-    return value if isinstance(value, list) else []
-
-
-def _safe_int(value: Any) -> Optional[int]:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _safe_float(value: Any) -> Optional[float]:

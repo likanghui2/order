@@ -78,6 +78,31 @@ class TaskStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_attempts_status_time ON attempts(status_code, finished_at)")
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS pnr_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_id TEXT NOT NULL,
+                    pnr TEXT NOT NULL,
+                    source TEXT,
+                    flight_number TEXT,
+                    cabin TEXT,
+                    dep_airport TEXT,
+                    arr_airport TEXT,
+                    dep_date TEXT,
+                    passenger_count INTEGER,
+                    passengers TEXT,
+                    order_state TEXT,
+                    created_at REAL NOT NULL,
+                    expires_at REAL,
+                    raw_result TEXT,
+                    updated_at REAL NOT NULL,
+                    UNIQUE(task_id, pnr)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_pnr_records_created ON pnr_records(created_at DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_pnr_records_pnr ON pnr_records(pnr)")
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS source_proxy_configs (
                     source TEXT PRIMARY KEY,
                     enabled INTEGER NOT NULL DEFAULT 0,
@@ -92,6 +117,7 @@ class TaskStore:
                 )
                 """
             )
+        self.backfill_pnr_records_from_candidates()
 
     def _ensure_task_columns(self, conn: sqlite3.Connection) -> None:
         existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
@@ -240,6 +266,84 @@ class TaskStore:
         events.sort(key=lambda item: (item.get("event_at") or 0, item.get("event_id") or 0), reverse=True)
         return events
 
+    def list_pnr_records(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM pnr_records
+                ORDER BY created_at DESC, id DESC
+                """
+            ).fetchall()
+        return [self._pnr_record_row_to_dict(row) for row in rows]
+
+    def upsert_pnr_record(self, row: dict[str, Any]) -> None:
+        pnr = _clean_optional(row.get("pnr"))
+        task_id = _clean_optional(row.get("taskId") or row.get("task_id"))
+        if not pnr or not task_id:
+            return
+        now = time.time()
+        created_at = _safe_float(row.get("createdAt") or row.get("created_at")) or now
+        expires_at = _safe_float(row.get("expiresAt") or row.get("expires_at"))
+        passenger_count = _safe_int(row.get("passengerCount") or row.get("passenger_count"))
+        raw_result = row.get("rawResult") if "rawResult" in row else row.get("raw_result")
+        raw_result_text = raw_result if isinstance(raw_result, str) else json.dumps(raw_result, ensure_ascii=False, default=str)
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO pnr_records (
+                    task_id, pnr, source, flight_number, cabin, dep_airport, arr_airport,
+                    dep_date, passenger_count, passengers, order_state, created_at,
+                    expires_at, raw_result, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(task_id, pnr) DO UPDATE SET
+                    source = excluded.source,
+                    flight_number = excluded.flight_number,
+                    cabin = excluded.cabin,
+                    dep_airport = excluded.dep_airport,
+                    arr_airport = excluded.arr_airport,
+                    dep_date = excluded.dep_date,
+                    passenger_count = excluded.passenger_count,
+                    passengers = excluded.passengers,
+                    order_state = excluded.order_state,
+                    expires_at = excluded.expires_at,
+                    raw_result = excluded.raw_result,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    task_id,
+                    pnr,
+                    _clean_optional(row.get("source")),
+                    _clean_optional(row.get("flightNumber") or row.get("flight_number")),
+                    _clean_optional(row.get("cabin")),
+                    _clean_optional(row.get("depAirport") or row.get("dep_airport")),
+                    _clean_optional(row.get("arrAirport") or row.get("arr_airport")),
+                    _clean_optional(row.get("depDate") or row.get("dep_date")),
+                    passenger_count,
+                    _clean_optional(row.get("passengers")),
+                    _clean_optional(row.get("orderState") or row.get("order_state")),
+                    created_at,
+                    expires_at,
+                    raw_result_text,
+                    now,
+                ),
+            )
+
+    def backfill_pnr_records_from_candidates(self) -> int:
+        count = 0
+        for event in self.list_pnr_candidate_events():
+            record = _pnr_record_from_task_result(
+                task_id=event.get("task_id") or "",
+                source=event.get("source") or "",
+                task_data=event.get("task_data") or {},
+                result=event.get("result"),
+                created_at=float(event.get("event_at") or event.get("updated_at") or time.time()),
+            )
+            if not record:
+                continue
+            self.upsert_pnr_record(record)
+            count += 1
+        return count
+
     def acquire_due_tasks(self, limit: Optional[int]) -> list[dict[str, Any]]:
         now = time.time()
         with self._lock, self._connect() as conn:
@@ -295,9 +399,15 @@ class TaskStore:
         now = time.time()
         raw_result = json.dumps(result, ensure_ascii=False, default=str)
         success = status_code == 200
+        pnr_record = None
         with self._lock, self._connect() as conn:
             row = conn.execute(
-                "SELECT status, interval_seconds, max_runs, run_count, success_count, failure_count FROM tasks WHERE task_id = ?",
+                """
+                SELECT status, source, task_data, interval_seconds, max_runs, run_count,
+                    success_count, failure_count, passenger_count
+                FROM tasks
+                WHERE task_id = ?
+                """,
                 (task_id,),
             ).fetchone()
             if not row:
@@ -353,6 +463,17 @@ class TaskStore:
                     task_id,
                 ),
             )
+            if success:
+                pnr_record = _pnr_record_from_task_result(
+                    task_id=task_id,
+                    source=row["source"],
+                    task_data=self._decode_json(row["task_data"]) or {},
+                    result=result,
+                    created_at=now,
+                    passenger_count=row["passenger_count"],
+                )
+        if pnr_record:
+            self.upsert_pnr_record(pnr_record)
 
     def fail_attempt(self, task_id: str, attempt_no: int, message: str, duration_seconds: float) -> None:
         self.finish_attempt(task_id, attempt_no, 0, message, {"status": 0, "message": message}, duration_seconds)
@@ -532,6 +653,25 @@ class TaskStore:
         data["result"] = cls._decode_json(data.get("result"))
         return data
 
+    @classmethod
+    def _pnr_record_row_to_dict(cls, row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "taskId": row["task_id"] or "",
+            "pnr": row["pnr"] or "",
+            "source": row["source"] or "",
+            "flightNumber": row["flight_number"] or "-",
+            "cabin": row["cabin"] or "-",
+            "depAirport": row["dep_airport"] or "-",
+            "arrAirport": row["arr_airport"] or "-",
+            "depDate": row["dep_date"] or "-",
+            "passengerCount": row["passenger_count"] if row["passenger_count"] is not None else "-",
+            "passengers": row["passengers"] or "-",
+            "orderState": row["order_state"] or "-",
+            "createdAt": row["created_at"] or 0,
+            "expiresAt": row["expires_at"] or 0,
+            "rawResult": cls._decode_json(row["raw_result"]),
+        }
+
     @staticmethod
     def _decode_json(value: Any) -> Any:
         if not value:
@@ -610,6 +750,149 @@ def _book_rate(task_data: dict[str, Any]) -> Optional[int]:
 def _clean_optional(value: Any) -> Optional[str]:
     text = str(value).strip() if value is not None else ""
     return text or None
+
+
+def _pnr_record_from_task_result(
+    task_id: str,
+    source: str,
+    task_data: dict[str, Any],
+    result: Any,
+    created_at: float,
+    passenger_count: Any = None,
+) -> Optional[dict[str, Any]]:
+    result_data = _as_dict(result)
+    if _safe_int(result_data.get("status")) != 200:
+        return None
+    pnr = _extract_pnr(result_data)
+    if not pnr:
+        return None
+    valid_minutes = _pnr_valid_minutes(task_data)
+    result_passenger_count = _extract_passenger_count(result_data)
+    ext = _as_dict(task_data.get("ext"))
+    fallback_passenger_count = (
+        result_passenger_count
+        or _safe_int(ext.get("passengerCount"))
+        or _safe_int(passenger_count)
+    )
+    return {
+        "taskId": task_id,
+        "pnr": pnr,
+        "source": source,
+        "flightNumber": task_data.get("flightNumber") or "-",
+        "cabin": _extract_cabin(result_data),
+        "depAirport": task_data.get("depAirport") or "-",
+        "arrAirport": task_data.get("arrAirport") or "-",
+        "depDate": task_data.get("depDate") or "-",
+        "passengerCount": fallback_passenger_count,
+        "passengers": _extract_passenger_names(result_data),
+        "orderState": _as_dict(result_data.get("data")).get("orderState") or result_data.get("message") or "-",
+        "createdAt": created_at,
+        "expiresAt": created_at + valid_minutes * 60 if created_at and valid_minutes else 0,
+        "rawResult": result_data,
+    }
+
+
+def _extract_pnr(result: dict[str, Any]) -> str:
+    data = _as_dict(result.get("data"))
+    return str(data.get("pnr") or result.get("pnr") or "").strip()
+
+
+def _extract_cabin(result: dict[str, Any]) -> str:
+    data = _as_dict(result.get("data"))
+    candidates: list[Any] = []
+    candidates.extend(_extract_cabins_from_journeys(data.get("journeys")))
+    candidates.extend(_extract_cabins_from_bundles(data.get("bundles")))
+    candidates.extend(_extract_cabins_from_segments(data.get("segments")))
+    candidates.extend(
+        [
+            data.get("cabin"),
+            _as_dict(data.get("reservation")).get("cabin"),
+            _as_dict(data.get("order")).get("cabin"),
+            _as_dict(data.get("booking")).get("cabin"),
+            result.get("cabin"),
+        ]
+    )
+    return next((cabin for cabin in (_normalize_cabin(item) for item in candidates) if cabin), "-")
+
+
+def _extract_cabins_from_journeys(journeys: Any) -> list[Any]:
+    cabins: list[Any] = []
+    for journey in _as_list(journeys):
+        journey_data = _as_dict(journey)
+        cabins.append(journey_data.get("cabin"))
+        cabins.extend(_extract_cabins_from_bundles(journey_data.get("bundles")))
+        cabins.extend(_extract_cabins_from_segments(journey_data.get("segments")))
+    return cabins
+
+
+def _extract_cabins_from_bundles(bundles: Any) -> list[Any]:
+    return [_as_dict(bundle).get("cabin") for bundle in _as_list(bundles)]
+
+
+def _extract_cabins_from_segments(segments: Any) -> list[Any]:
+    return [_as_dict(segment).get("cabin") for segment in _as_list(segments)]
+
+
+def _normalize_cabin(value: Any) -> str:
+    cabin = str(value or "").strip()
+    return cabin if cabin and cabin != "-" else ""
+
+
+def _extract_passengers(result: dict[str, Any]) -> list[Any]:
+    data = _as_dict(result.get("data"))
+    passengers = data.get("passengers") or result.get("passengers")
+    return passengers if isinstance(passengers, list) else []
+
+
+def _extract_passenger_count(result: dict[str, Any]) -> Optional[int]:
+    passengers = _extract_passengers(result)
+    return len(passengers) if passengers else None
+
+
+def _extract_passenger_names(result: dict[str, Any]) -> str:
+    names: list[str] = []
+    for passenger in _extract_passengers(result):
+        passenger_data = _as_dict(passenger)
+        joined = "/".join(
+            item
+            for item in [
+                str(passenger_data.get("lastName") or passenger_data.get("last_name") or "").strip(),
+                str(passenger_data.get("firstName") or passenger_data.get("first_name") or "").strip(),
+            ]
+            if item
+        )
+        name = joined or passenger_data.get("name") or passenger_data.get("passengerName") or ""
+        if name:
+            names.append(str(name))
+    return ", ".join(names) if names else "-"
+
+
+def _pnr_valid_minutes(task_data: dict[str, Any]) -> Optional[float]:
+    ext = _as_dict(task_data.get("ext"))
+    value = _safe_float(ext.get("pnrValidMinutes") or ext.get("pnrValidityMinutes") or ext.get("pnrValidMinute"))
+    return value if value and value > 0 else None
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _safe_int(value: Any) -> Optional[int]:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _empty_source_proxy_config(source: str) -> dict[str, Any]:
