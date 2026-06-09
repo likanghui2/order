@@ -34,6 +34,29 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
     use_gls_booking = "00" in raw_cabin
     target_cabin = raw_cabin.replace("00", "")
 
+    def _search_and_validate_min(web_service, adult_count):
+        journey_list = web_service.search_min(
+            dep_airport=sham_booking_data.dep_airport,
+            arr_airport=sham_booking_data.arr_airport,
+            dep_date=dep_date,
+            adt_number=adult_count,
+            chd_number=0,
+            infant_count=0,
+            currency_code=currency_code, is_hold=True
+        )
+        journey_list = FlightUtil.number_filter(journey_list, sham_booking_data.flight_number)
+
+        if len(journey_list) != 1:
+            raise ServiceError(ServiceStateEnum.NO_AVAILABLE_FLIGHT_NUMBER, sham_booking_data.flight_number)
+
+        journey = journey_list[0]
+        current_bundle = journey.bundles[0]
+        if target_cabin and current_bundle.cabin != target_cabin:
+            LOG.info(f'当前舱位[{current_bundle.cabin}]，目标舱位[{target_cabin}]，当前余座[{current_bundle.seat}]')
+            raise ServiceError(ServiceStateEnum.NO_AVAILABLE_CABIN, target_cabin, current_bundle.cabin)
+
+        return journey
+
     def _search_and_validate(web_service, adult_count):
         # web_service.initialize_session()
 

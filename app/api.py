@@ -2,15 +2,18 @@ import json
 import os
 import time
 import uuid
+import csv
 from copy import deepcopy
 from contextlib import asynccontextmanager
+from datetime import date, datetime
+from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import unquote, urlparse
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -22,6 +25,8 @@ from .store import ACTIVE, TaskStore
 APP_DIR = Path(__file__).resolve().parents[1]
 STATIC_DIR = APP_DIR / "static"
 DB_PATH = Path(os.getenv("LOCAL_SHAM_DB", APP_DIR / "local_sham_booking.db"))
+MAX_TABLE_IMPORT_ROWS = 1001
+MAX_TABLE_IMPORT_COLUMNS = 50
 
 
 class TaskPayload(BaseModel):
@@ -113,6 +118,46 @@ def list_tasks():
     return store.list_tasks()
 
 
+@app.get("/api/pnrs")
+def list_pnrs(
+    task_id: str = Query(default="", alias="taskId"),
+    pnr: str = "",
+    source: str = "",
+    flight_number: str = Query(default="", alias="flightNumber"),
+    cabin: str = "",
+    dep_airport: str = Query(default="", alias="depAirport"),
+    arr_airport: str = Query(default="", alias="arrAirport"),
+    dep_date: str = Query(default="", alias="depDate"),
+    passenger_count: str = Query(default="", alias="passengerCount"),
+    passengers: str = "",
+    expired: str = "",
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
+    filters = {
+        "taskId": task_id,
+        "pnr": pnr,
+        "source": source,
+        "flightNumber": flight_number,
+        "cabin": cabin,
+        "depAirport": dep_airport,
+        "arrAirport": arr_airport,
+        "depDate": dep_date,
+        "passengerCount": passenger_count,
+        "passengers": passengers,
+        "expired": expired if expired in {"valid", "expired", "unknown"} else "",
+    }
+    rows = _build_pnr_rows(filters)
+    page_rows = rows[offset : offset + limit]
+    return {
+        "rows": page_rows,
+        "total": len(rows),
+        "limit": limit,
+        "offset": offset,
+        "hasMore": offset + len(page_rows) < len(rows),
+    }
+
+
 @app.post("/api/tasks")
 def create_task(request: TaskPayload):
     payload = _normalize_payload(request)
@@ -141,6 +186,28 @@ def import_tasks(request: ImportPayload):
         else:
             imported.append(store.create_task(payload))
     return {"count": len(imported), "tasks": imported}
+
+
+@app.post("/api/table-import/preview")
+async def preview_table_import(file: UploadFile = File(...)):
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="表格文件为空")
+    rows = _parse_table_file(file.filename or "", content)
+    return {
+        "filename": file.filename,
+        "rows": rows,
+    }
+
+
+@app.get("/api/table-import/template")
+def download_table_import_template():
+    buffer = _build_table_import_template()
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="sham-booking-table-template.xlsx"'},
+    )
 
 
 @app.get("/api/tasks/{task_id}")
@@ -204,6 +271,199 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 @app.get("/")
 def index():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+def _build_pnr_rows(filters: dict[str, str]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    rows: list[dict[str, Any]] = []
+    now = time.time()
+    for event in store.list_pnr_candidate_events():
+        row = _pnr_row_from_event(event)
+        if not row:
+            continue
+        key = f"{row['taskId']}:{row['pnr']}"
+        if key in seen:
+            continue
+        seen.add(key)
+        if _matches_pnr_filters(row, filters, now):
+            rows.append(row)
+    rows.sort(key=lambda item: item.get("createdAt") or 0, reverse=True)
+    return rows
+
+
+def _pnr_row_from_event(event: dict[str, Any]) -> Optional[dict[str, Any]]:
+    result = _as_dict(event.get("result"))
+    if _safe_int(result.get("status")) != 200:
+        return None
+    pnr = _extract_pnr(result)
+    if not pnr:
+        return None
+    task_data = _as_dict(event.get("task_data"))
+    created_at = float(event.get("event_at") or event.get("updated_at") or 0)
+    valid_minutes = _pnr_valid_minutes(task_data)
+    expires_at = created_at + valid_minutes * 60 if created_at and valid_minutes else 0
+    return {
+        "taskId": event.get("task_id") or "",
+        "pnr": pnr,
+        "source": event.get("source") or "",
+        "flightNumber": task_data.get("flightNumber") or "-",
+        "cabin": _extract_cabin(result),
+        "depAirport": task_data.get("depAirport") or "-",
+        "arrAirport": task_data.get("arrAirport") or "-",
+        "depDate": task_data.get("depDate") or "-",
+        "passengerCount": _extract_passenger_count(result) or "-",
+        "passengers": _extract_passenger_names(result),
+        "orderState": _as_dict(result.get("data")).get("orderState") or result.get("message") or "-",
+        "createdAt": created_at,
+        "expiresAt": expires_at,
+    }
+
+
+def _matches_pnr_filters(row: dict[str, Any], filters: dict[str, str], now: float) -> bool:
+    if filters["taskId"] and not _contains(row.get("taskId"), filters["taskId"]):
+        return False
+    if filters["pnr"] and not _contains(row.get("pnr"), filters["pnr"]):
+        return False
+    if filters["source"] and str(row.get("source") or "").upper() != filters["source"].upper():
+        return False
+    if filters["flightNumber"] and not _contains(row.get("flightNumber"), filters["flightNumber"]):
+        return False
+    if filters["cabin"] and not _contains(row.get("cabin"), filters["cabin"]):
+        return False
+    if filters["depAirport"] and not _contains(row.get("depAirport"), filters["depAirport"]):
+        return False
+    if filters["arrAirport"] and not _contains(row.get("arrAirport"), filters["arrAirport"]):
+        return False
+    if filters["depDate"] and not _contains(f"{row.get('depDate')} {_format_dep_date(row.get('depDate'))}", filters["depDate"]):
+        return False
+    if filters["passengerCount"] and not _contains(row.get("passengerCount"), filters["passengerCount"]):
+        return False
+    if filters["passengers"] and not _contains(row.get("passengers"), filters["passengers"]):
+        return False
+    if filters["expired"] and _pnr_expiry_state(row.get("expiresAt"), now) != filters["expired"]:
+        return False
+    return True
+
+
+def _extract_pnr(result: dict[str, Any]) -> str:
+    data = _as_dict(result.get("data"))
+    return str(data.get("pnr") or result.get("pnr") or "").strip()
+
+
+def _extract_cabin(result: dict[str, Any]) -> str:
+    data = _as_dict(result.get("data"))
+    candidates: list[Any] = []
+    candidates.extend(_extract_cabins_from_journeys(data.get("journeys")))
+    candidates.extend(_extract_cabins_from_bundles(data.get("bundles")))
+    candidates.extend(_extract_cabins_from_segments(data.get("segments")))
+    candidates.extend(
+        [
+            data.get("cabin"),
+            _as_dict(data.get("reservation")).get("cabin"),
+            _as_dict(data.get("order")).get("cabin"),
+            _as_dict(data.get("booking")).get("cabin"),
+            result.get("cabin"),
+        ]
+    )
+    return next((cabin for cabin in (_normalize_cabin(item) for item in candidates) if cabin), "-")
+
+
+def _extract_cabins_from_journeys(journeys: Any) -> list[Any]:
+    cabins: list[Any] = []
+    for journey in _as_list(journeys):
+        journey_data = _as_dict(journey)
+        cabins.append(journey_data.get("cabin"))
+        cabins.extend(_extract_cabins_from_bundles(journey_data.get("bundles")))
+        cabins.extend(_extract_cabins_from_segments(journey_data.get("segments")))
+    return cabins
+
+
+def _extract_cabins_from_bundles(bundles: Any) -> list[Any]:
+    return [_as_dict(bundle).get("cabin") for bundle in _as_list(bundles)]
+
+
+def _extract_cabins_from_segments(segments: Any) -> list[Any]:
+    return [_as_dict(segment).get("cabin") for segment in _as_list(segments)]
+
+
+def _normalize_cabin(value: Any) -> str:
+    cabin = str(value or "").strip()
+    return cabin if cabin and cabin != "-" else ""
+
+
+def _extract_passengers(result: dict[str, Any]) -> list[Any]:
+    data = _as_dict(result.get("data"))
+    passengers = data.get("passengers") or result.get("passengers")
+    return passengers if isinstance(passengers, list) else []
+
+
+def _extract_passenger_count(result: dict[str, Any]) -> Optional[int]:
+    passengers = _extract_passengers(result)
+    return len(passengers) if passengers else None
+
+
+def _extract_passenger_names(result: dict[str, Any]) -> str:
+    names: list[str] = []
+    for passenger in _extract_passengers(result):
+        passenger_data = _as_dict(passenger)
+        joined = "/".join(
+            item
+            for item in [
+                str(passenger_data.get("lastName") or passenger_data.get("last_name") or "").strip(),
+                str(passenger_data.get("firstName") or passenger_data.get("first_name") or "").strip(),
+            ]
+            if item
+        )
+        name = joined or passenger_data.get("name") or passenger_data.get("passengerName") or ""
+        if name:
+            names.append(str(name))
+    return ", ".join(names) if names else "-"
+
+
+def _pnr_valid_minutes(task_data: dict[str, Any]) -> Optional[float]:
+    ext = _as_dict(task_data.get("ext"))
+    value = _safe_float(ext.get("pnrValidMinutes") or ext.get("pnrValidityMinutes") or ext.get("pnrValidMinute"))
+    return value if value and value > 0 else None
+
+
+def _pnr_expiry_state(expires_at: Any, now: float) -> str:
+    expires_at_value = _safe_float(expires_at)
+    if not expires_at_value:
+        return "unknown"
+    return "expired" if now >= expires_at_value else "valid"
+
+
+def _format_dep_date(value: Any) -> str:
+    text = str(value or "").strip()
+    if len(text) == 8 and text.isdigit():
+        return f"{text[:4]}-{text[4:6]}-{text[6:8]}"
+    return text
+
+
+def _contains(value: Any, query: str) -> bool:
+    return str(query or "").lower() in str(value if value is not None else "").lower()
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _safe_int(value: Any) -> Optional[int]:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _normalize_payload(request: TaskPayload, fallback_task_id: Optional[str] = None) -> dict[str, Any]:
@@ -314,6 +574,165 @@ def _coerce_import_items(value: Any) -> list[dict[str, Any]]:
     if isinstance(value, list):
         return value
     raise HTTPException(status_code=400, detail="导入内容必须是数组、tasks 数组或 taskId 映射")
+
+
+def _build_table_import_template() -> BytesIO:
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail="缺少 openpyxl 依赖，请更新 requirements-local.txt 后安装") from exc
+
+    headers = ["Source", "出发地", "目的地", "日期", "航班号", "舱位", "查询延迟", "预计延迟", "人数", "PNR有效期", "护照"]
+    rows = [
+        headers,
+        ["5JWEB", "SZX", "KUL", "2026-06-03", "AK127", "L", 30, 10, "1-3", 120, "是"],
+        ["VJWEB", "CAN", "SGN", "2026-06-07", "VJ3909", "H", 30, 10, "1-1", 60, "是"],
+    ]
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "押位任务导入"
+    for row in rows:
+        sheet.append(row)
+
+    header_fill = PatternFill("solid", fgColor="DBEAFE")
+    header_font = Font(bold=True, color="1E293B")
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    widths = [14, 12, 12, 14, 14, 10, 12, 12, 12, 14, 10]
+    for index, width in enumerate(widths, start=1):
+        sheet.column_dimensions[get_column_letter(index)].width = width
+    sheet.freeze_panes = "A2"
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def _parse_table_file(filename: str, content: bytes) -> list[list[str]]:
+    suffix = Path(filename or "").suffix.lower()
+    if suffix in {".xlsx", ".xlsm"} or (not suffix and content.startswith(b"PK")):
+        rows = _parse_xlsx_rows(content)
+    elif suffix == ".xls":
+        rows = _parse_xls_rows(content)
+    elif suffix in {".csv", ".tsv", ".txt", ""}:
+        rows = _parse_text_table_rows(filename, content)
+    else:
+        raise HTTPException(status_code=400, detail="仅支持 .xlsx、.xlsm、.xls、.csv、.tsv、.txt 表格文件")
+    if not rows:
+        raise HTTPException(status_code=400, detail="表格文件没有可解析的数据")
+    return rows
+
+
+def _parse_xlsx_rows(content: bytes) -> list[list[str]]:
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail="缺少 openpyxl 依赖，请更新 requirements-local.txt 后安装") from exc
+
+    try:
+        workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Excel 文件解析失败，请确认文件格式") from exc
+    sheet = workbook.active
+    rows = []
+    for row in sheet.iter_rows(max_row=MAX_TABLE_IMPORT_ROWS, max_col=MAX_TABLE_IMPORT_COLUMNS, values_only=True):
+        rows.append([_table_cell_to_text(cell) for cell in row])
+    workbook.close()
+    return _trim_table_rows(rows)
+
+
+def _parse_xls_rows(content: bytes) -> list[list[str]]:
+    try:
+        import xlrd
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail="缺少 xlrd 依赖，请更新 requirements-local.txt 后安装") from exc
+
+    try:
+        workbook = xlrd.open_workbook(file_contents=content)
+        sheet = workbook.sheet_by_index(0)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="XLS 文件解析失败，请确认文件格式") from exc
+    rows = []
+    max_rows = min(sheet.nrows, MAX_TABLE_IMPORT_ROWS)
+    max_cols = min(sheet.ncols, MAX_TABLE_IMPORT_COLUMNS)
+    for row_index in range(max_rows):
+        cells = []
+        for column_index in range(max_cols):
+            cell = sheet.cell(row_index, column_index)
+            value = cell.value
+            if cell.ctype == xlrd.XL_CELL_DATE:
+                try:
+                    parts = xlrd.xldate_as_tuple(value, workbook.datemode)
+                    value = date(*parts[:3]) if parts[3:] == (0, 0, 0) else datetime(*parts)
+                except Exception:
+                    pass
+            cells.append(_table_cell_to_text(value))
+        rows.append(cells)
+    return _trim_table_rows(rows)
+
+
+def _parse_text_table_rows(filename: str, content: bytes) -> list[list[str]]:
+    text = _decode_table_text(content)
+    suffix = Path(filename or "").suffix.lower()
+    sample = text[:4096]
+    delimiter = "\t" if suffix == ".tsv" or sample.count("\t") >= sample.count(",") else None
+    if delimiter is None:
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+            reader = csv.reader(StringIO(text), dialect)
+        except csv.Error:
+            reader = csv.reader(StringIO(text))
+    else:
+        reader = csv.reader(StringIO(text), delimiter=delimiter)
+    rows = []
+    for index, row in enumerate(reader):
+        if index >= MAX_TABLE_IMPORT_ROWS:
+            break
+        rows.append([_table_cell_to_text(cell) for cell in row[:MAX_TABLE_IMPORT_COLUMNS]])
+    return _trim_table_rows(rows)
+
+
+def _decode_table_text(content: bytes) -> str:
+    for encoding in ("utf-8-sig", "gb18030", "big5", "latin-1"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return content.decode("utf-8", errors="replace")
+
+
+def _table_cell_to_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, date):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def _trim_table_rows(rows: list[list[str]]) -> list[list[str]]:
+    trimmed = []
+    for row in rows:
+        cells = [str(cell or "").strip() for cell in row[:MAX_TABLE_IMPORT_COLUMNS]]
+        while cells and not cells[-1]:
+            cells.pop()
+        if cells or trimmed:
+            trimmed.append(cells)
+    while trimmed and not any(trimmed[-1]):
+        trimmed.pop()
+    return trimmed
 
 
 def _generated_task_id(task_data: dict[str, Any], source: str) -> str:

@@ -11,7 +11,7 @@ from common.model.proxy_Info_model import ProxyInfoModel
 from common.utils import log_util
 
 from .proxy_context import ensure_thread_local_proxy_provider
-from .source_registry import SOURCE_MODULES
+from .source_registry import module_for_source
 from .store import TaskStore
 
 
@@ -136,7 +136,7 @@ class LocalRunner:
         source = source.upper()
         if source in self._task_cache:
             return self._task_cache[source]
-        module_name = SOURCE_MODULES.get(source)
+        module_name = module_for_source(source)
         if not module_name:
             raise ValueError(f"不支持的 source: {source}")
         module = importlib.import_module(module_name)

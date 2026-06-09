@@ -294,7 +294,8 @@ class WebScript:
             return False
 
     @retry_decorator(
-        [(ServiceStateEnum.ROBOT_CHECK, reset_proxy_ip), (ServiceStateEnum.AWS_CHECK_FAILURE, token_macie)])
+        [(ServiceStateEnum.ROBOT_CHECK, token_macie), (ServiceStateEnum.AWS_CHECK_FAILURE, token_macie),
+         (ServiceStateEnum.CURL_EXCEPTION, token_macie)])
     def search_flight(self, data):
         if not self.__aws_token:
             self.token_macie()
@@ -363,6 +364,27 @@ class WebScript:
             raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY,
                                response.status)
         return response.to_dict()
+
+    def search_flight_min(self, data: dict):
+        headers = {"Connection": "keep-alive",
+                   "terminal": "10",
+                   "User-Agent": self.__ua,
+                   "xweb_xhr": "1",
+                   "Content-Type": "application/json",
+                   "tenant-id": "1",
+                   "Accept": "*/*",
+                   "Sec-Fetch-Site": "cross-site",
+                   "Sec-Fetch-Mode": "cors",
+                   "Sec-Fetch-Dest": "empty",
+                   "Accept-Encoding": "gzip, deflate, br",
+                   "Accept-Language": "zh-CN,zh;q=0.9"
+                   }
+        response = self.__http_utils.get(url=f'https://miniprogram.vietjetair.com.cn/app-api/yuejie/vietjet/searchFlight?{urlencode( data)}',
+                                          headers=headers, timeout=self.__timeout)
+        if response.status != 200:
+            raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY,
+                               response.status)
+        return response.to_dict()['data']
 
     @retry_decorator(
         [(ServiceStateEnum.CURL_EXCEPTION, reset_proxy_ip),

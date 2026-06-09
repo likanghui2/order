@@ -58,7 +58,15 @@ class GlobalVariable:
         session_time=int(os.environ.get("PROXY_SESSION_TIME")) if os.environ.get("PROXY_SESSION_TIME") else None,
         format=os.environ.get("PROXY_FORMAT") if os.environ.get("PROXY_FORMAT") else 'http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}',
     )  # 代理信息
-
+    # PROXY_INFO_DATA = ProxyInfoModel(
+    #     host="gw.dataimpulse.com",
+    #     port=int(823),
+    #     username='9218a3e1e54c5a2ee31e',
+    #     password='6f63ad4e69b63ee6',
+    #     region='th,my,sg,id',
+    #     session_time=10,
+    #     format='http://{username}__cr.{region}:{password}@{host}:{port}',
+    # )  # 代理信息
     ENV = _ENV_STRING  # 环境变量
     RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST")  # rabbitmq host
     RABBITMQ_PORT = int(os.environ.get("RABBITMQ_PORT"))  # rabbitmq port

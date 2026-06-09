@@ -75,6 +75,7 @@ class TaskStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, in_flight, next_run_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_attempts_task ON attempts(task_id, id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_attempts_status_time ON attempts(status_code, finished_at)")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS source_proxy_configs (
@@ -194,6 +195,50 @@ class TaskStore:
                 (task_id, limit),
             ).fetchall()
         return [self._row_to_dict(row) for row in rows]
+
+    def list_pnr_candidate_events(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            attempt_rows = conn.execute(
+                """
+                SELECT
+                    t.task_id,
+                    t.source,
+                    t.task_data,
+                    t.updated_at,
+                    a.id AS event_id,
+                    a.raw_result AS result,
+                    COALESCE(a.finished_at, a.started_at, t.updated_at) AS event_at
+                FROM attempts a
+                JOIN tasks t ON t.task_id = a.task_id
+                WHERE t.is_parent = 0
+                    AND a.status_code = 200
+                    AND a.raw_result IS NOT NULL
+                    AND LOWER(a.raw_result) LIKE '%pnr%'
+                ORDER BY event_at DESC, a.id DESC
+                """
+            ).fetchall()
+            task_rows = conn.execute(
+                """
+                SELECT
+                    task_id,
+                    source,
+                    task_data,
+                    updated_at,
+                    0 AS event_id,
+                    last_result AS result,
+                    updated_at AS event_at
+                FROM tasks
+                WHERE is_parent = 0
+                    AND last_result IS NOT NULL
+                    AND LOWER(last_result) LIKE '%pnr%'
+                ORDER BY updated_at DESC
+                """
+            ).fetchall()
+
+        events = [self._pnr_candidate_row_to_dict(row, "attempt") for row in attempt_rows]
+        events.extend(self._pnr_candidate_row_to_dict(row, "task") for row in task_rows)
+        events.sort(key=lambda item: (item.get("event_at") or 0, item.get("event_id") or 0), reverse=True)
+        return events
 
     def acquire_due_tasks(self, limit: Optional[int]) -> list[dict[str, Any]]:
         now = time.time()
@@ -472,15 +517,31 @@ class TaskStore:
         data = dict(row)
         for key in ("task_data", "last_result", "raw_result"):
             if data.get(key):
-                try:
-                    data[key] = json.loads(data[key])
-                except json.JSONDecodeError:
-                    pass
+                data[key] = cls._decode_json(data[key])
         if "in_flight" in data:
             data["in_flight"] = bool(data["in_flight"])
         if "is_parent" in data:
             data["is_parent"] = bool(data["is_parent"])
         return data
+
+    @classmethod
+    def _pnr_candidate_row_to_dict(cls, row: sqlite3.Row, origin: str) -> dict[str, Any]:
+        data = dict(row)
+        data["origin"] = origin
+        data["task_data"] = cls._decode_json(data.get("task_data"))
+        data["result"] = cls._decode_json(data.get("result"))
+        return data
+
+    @staticmethod
+    def _decode_json(value: Any) -> Any:
+        if not value:
+            return value
+        if not isinstance(value, str):
+            return value
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return value
 
     @staticmethod
     def _order_task_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

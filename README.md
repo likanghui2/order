@@ -4,7 +4,7 @@
 
 当前版本取消 RabbitMQ/Celery 队列投递机制，改成：
 
-- 图形化页面录入或导入押位任务。
+- 图形化页面录入或通过表格文件导入押位任务。
 - 任务保存到本地 SQLite：`local_sham_booking.db`。
 - 本地线程池扫描到期任务，直接调用 `task.<source>.sham_booking.main(payload)`。
 - 执行结果、日志摘要和最近返回写回 SQLite，页面自动刷新查看。
@@ -45,9 +45,12 @@ LOCAL_SHAM_DB=/Users/a1234/Desktop/rakdFlightLocalShamBooking/local_sham_booking
 LOCAL_SHAM_CONCURRENCY=0
 LOCAL_SHAM_POLL_INTERVAL=0.5
 PYTHON_BIN=/Users/a1234/Desktop/rakdFlightLocalShamBooking/.venv/bin/python
+RELOAD=1
+RELOAD_DIRS=app,static,task
 ```
 
 `LOCAL_SHAM_CONCURRENCY=0` 表示不限制本地并发；设置为 `3`、`5` 等正整数时，才会限制同时执行数量。
+`RELOAD=1` 表示开启热更新，默认监听 `app`、`static` 和 `task`；如需关闭，用 `RELOAD=0 /bin/bash run-local-sham.sh`。
 
 ## 页面使用
 
@@ -56,7 +59,8 @@ PYTHON_BIN=/Users/a1234/Desktop/rakdFlightLocalShamBooking/.venv/bin/python
 - 任务会立即写入 SQLite，到期后本机直接执行。
 - “开始”会把任务设为立即执行；“停止”会暂停轮询；“复制”会把任务参数回填到上方表单；“删除”会清理任务和执行记录。
 - 点击任务行后，底部 Log 区会显示成功/失败次数、数据库文件、最近返回和执行记录。
-- “高级配置 / JSON 导入”可以生成单任务 JSON 或批量导入任务。
+- “表格导入”支持上传 `.xlsx`、`.xlsm`、`.xls`、`.csv`、`.tsv`、`.txt` 文件，解析预览有效行后按行创建任务。
+- Source 会自动读取 `task/*/sham_booking.py`，新增数据源时增加对应目录和 `sham_booking.py` 即可，例如 `task/XXweb/sham_booking.py` 会显示为 `XXWEB`。
 - “配置管理 / 数据源代理”可以为每个 source 配置独立代理；未启用或未配置时使用环境变量里的默认代理。
 
 ## 任务格式
@@ -93,4 +97,4 @@ JSON 可以是数组、`{"tasks": [...]}`，或 `{taskId: payload}`。
 }
 ```
 
-当前内置 source 映射：`5JWEB`、`7CWEB`、`GAWEB`、`KRWEB`、`ODWEB`、`SLWEB`、`TGWEB`、`UOAPP`、`VJWEB`、`VNWEB`、`VZWEB`。
+当前 source 不再手工维护映射表，会按 `task` 目录动态发现支持押位的 source。

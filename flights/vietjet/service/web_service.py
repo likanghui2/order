@@ -107,6 +107,36 @@ class WebService:
 
         return journey_info_model
 
+    def search_min(self,
+                   dep_airport: str,
+                   arr_airport: str,
+                   dep_date: str,
+                   adt_number: int,
+                   chd_number: int,
+                   infant_count: int,
+                   currency_code: str,
+                   ret_date: Optional[str] = None, is_hold: bool = False):
+        o_data = {
+            "cityPair": f"{dep_airport}-{arr_airport}",
+            "departure": dep_date,
+            "returnDate": '',
+            "adultCount": str(adt_number),
+            "childCount": "0",
+            "infantCount": "0",
+            "promoCode": ""
+        }
+
+        flight_data = self.__web_script.search_flight_min(o_data)
+        from flights.vietjet.flight_common.app_flight_parse import AppFlightParser
+        journey_info_model = AppFlightParser.journey_info_parser(flight_data=flight_data)
+        if chd_number == 0:
+            for i in journey_info_model:
+                for z in i.bundles:
+                    z.price_info.child_tax_price = z.price_info.adult_tax_price
+                    z.price_info.child_ticket_price = z.price_info.adult_ticket_price
+
+        return journey_info_model
+
     def passengers_add(self, passengers: List[PassengerInfoModel], key, contact_info: ContactInfoModel):
         passenger_list = []
         phone = '+' + contact_info.phone_code + contact_info.phone_number
@@ -484,7 +514,8 @@ class WebService:
         data['requestId'] = self.request_id_get()
         add_signature = VietjetSearchUtils.add_signature(data)
         request_data = VietjetSearchUtils.encrypt(add_signature)
-        response = self.__web_script.reservations(request_data, authorization=self.authorization if not is_gpay else None)
+        response = self.__web_script.reservations(request_data,
+                                                  authorization=self.authorization if not is_gpay else None)
         return response, add_signature
 
     @staticmethod
