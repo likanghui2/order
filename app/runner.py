@@ -39,7 +39,10 @@ class LocalRunner:
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
-        self.store.reset_stale_in_flight(older_than_seconds=0)
+        try:
+            self.store.reset_stale_in_flight(older_than_seconds=0)
+        except Exception as exc:
+            LOG.error({"error": str(exc)}, "重置本地任务状态失败")
         self._executor = None if self.unlimited else ThreadPoolExecutor(max_workers=max(1, self.concurrency))
         self._thread = threading.Thread(target=self._run, name="local-sham-runner", daemon=True)
         self._thread.start()
@@ -71,20 +74,24 @@ class LocalRunner:
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
-            self._collect_finished(block=False)
-            if self.unlimited:
-                for task in self.store.acquire_due_tasks(0):
-                    self._start_unlimited_task(task)
-            else:
-                assert self._executor is not None
-                with self._running_lock:
-                    free_slots = self.concurrency - len(self._running)
-                if free_slots > 0:
-                    for task in self.store.acquire_due_tasks(free_slots):
-                        future = self._executor.submit(self._execute_task, task)
-                        with self._running_lock:
-                            self._running[future] = task["task_id"]
-            self._stop_event.wait(self.poll_interval)
+            try:
+                self._collect_finished(block=False)
+                if self.unlimited:
+                    for task in self.store.acquire_due_tasks(0):
+                        self._start_unlimited_task(task)
+                else:
+                    assert self._executor is not None
+                    with self._running_lock:
+                        free_slots = self.concurrency - len(self._running)
+                    if free_slots > 0:
+                        for task in self.store.acquire_due_tasks(free_slots):
+                            future = self._executor.submit(self._execute_task, task)
+                            with self._running_lock:
+                                self._running[future] = task["task_id"]
+                self._stop_event.wait(self.poll_interval)
+            except Exception as exc:
+                LOG.error({"error": str(exc)}, "本地执行器轮询异常")
+                self._stop_event.wait(max(3, self.poll_interval))
         self._collect_finished(block=True)
 
     def _start_unlimited_task(self, task: dict[str, Any]) -> None:
