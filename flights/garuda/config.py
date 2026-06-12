@@ -1,5 +1,7 @@
 class Config:
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+    APP_WSO_CLIENT_ID = "k6ibp0gTS9bDu1ntHpce6dIbJc0a"
+    APP_WSO_CLIENT_SECRET = "SQEjKCIULq5Y5H9DGli4iC4VHdQa"
     BAGGAGE_COLLECTION = [['IDIDBISFL', 'BUSINESS FLEXIBLE', '30 kg'],
                           ['IDIDBISPR', 'BUSINESS PROMO', 'Checked baggage 30kg, cabin baggage 7kg'],
                           ['IDIDECOAF', 'ECO AFFORDABLE', 'Checked baggage 20kg, cabin baggage 7kg'],
