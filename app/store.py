@@ -85,6 +85,7 @@ class TaskStore:
                     source TEXT,
                     flight_number TEXT,
                     cabin TEXT,
+                    currency_code TEXT,
                     dep_airport TEXT,
                     arr_airport TEXT,
                     dep_date TEXT,
@@ -99,6 +100,7 @@ class TaskStore:
                 )
                 """
             )
+            self._ensure_pnr_record_columns(conn)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_pnr_records_created ON pnr_records(created_at DESC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_pnr_records_pnr ON pnr_records(pnr)")
             conn.execute(
@@ -127,6 +129,15 @@ class TaskStore:
             "child_index": "ALTER TABLE tasks ADD COLUMN child_index INTEGER",
             "passenger_count": "ALTER TABLE tasks ADD COLUMN passenger_count INTEGER",
             "passenger_range": "ALTER TABLE tasks ADD COLUMN passenger_range TEXT",
+        }
+        for column, sql in column_sql.items():
+            if column not in existing_columns:
+                conn.execute(sql)
+
+    def _ensure_pnr_record_columns(self, conn: sqlite3.Connection) -> None:
+        existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(pnr_records)").fetchall()}
+        column_sql = {
+            "currency_code": "ALTER TABLE pnr_records ADD COLUMN currency_code TEXT",
         }
         for column, sql in column_sql.items():
             if column not in existing_columns:
@@ -291,14 +302,15 @@ class TaskStore:
             conn.execute(
                 """
                 INSERT INTO pnr_records (
-                    task_id, pnr, source, flight_number, cabin, dep_airport, arr_airport,
-                    dep_date, passenger_count, passengers, order_state, created_at,
+                    task_id, pnr, source, flight_number, cabin, currency_code,
+                    dep_airport, arr_airport, dep_date, passenger_count, passengers, order_state, created_at,
                     expires_at, raw_result, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(task_id, pnr) DO UPDATE SET
                     source = excluded.source,
                     flight_number = excluded.flight_number,
                     cabin = excluded.cabin,
+                    currency_code = excluded.currency_code,
                     dep_airport = excluded.dep_airport,
                     arr_airport = excluded.arr_airport,
                     dep_date = excluded.dep_date,
@@ -315,6 +327,7 @@ class TaskStore:
                     _clean_optional(row.get("source")),
                     _clean_optional(row.get("flightNumber") or row.get("flight_number")),
                     _clean_optional(row.get("cabin")),
+                    _clean_optional(row.get("currencyCode") or row.get("currency_code")),
                     _clean_optional(row.get("depAirport") or row.get("dep_airport")),
                     _clean_optional(row.get("arrAirport") or row.get("arr_airport")),
                     _clean_optional(row.get("depDate") or row.get("dep_date")),
@@ -661,6 +674,7 @@ class TaskStore:
             "source": row["source"] or "",
             "flightNumber": row["flight_number"] or "-",
             "cabin": row["cabin"] or "-",
+            "currencyCode": row["currency_code"] or "-",
             "depAirport": row["dep_airport"] or "-",
             "arrAirport": row["arr_airport"] or "-",
             "depDate": row["dep_date"] or "-",
@@ -780,6 +794,7 @@ def _pnr_record_from_task_result(
         "source": source,
         "flightNumber": task_data.get("flightNumber") or "-",
         "cabin": _extract_cabin(result_data),
+        "currencyCode": _extract_currency_code(result_data, task_data),
         "depAirport": task_data.get("depAirport") or "-",
         "arrAirport": task_data.get("arrAirport") or "-",
         "depDate": task_data.get("depDate") or "-",
@@ -813,6 +828,31 @@ def _extract_cabin(result: dict[str, Any]) -> str:
         ]
     )
     return next((cabin for cabin in (_normalize_cabin(item) for item in candidates) if cabin), "-")
+
+
+def _extract_currency_code(result: dict[str, Any], task_data: dict[str, Any]) -> str:
+    data = _as_dict(result.get("data"))
+    booking_config = _as_dict(task_data.get("bookingConfig"))
+    candidates = [
+        data.get("currencyCode"),
+        data.get("currency"),
+        _as_dict(data.get("reservation")).get("currencyCode"),
+        _as_dict(data.get("reservation")).get("currency"),
+        _as_dict(data.get("order")).get("currencyCode"),
+        _as_dict(data.get("order")).get("currency"),
+        _as_dict(data.get("booking")).get("currencyCode"),
+        _as_dict(data.get("booking")).get("currency"),
+        result.get("currencyCode"),
+        result.get("currency"),
+        booking_config.get("currencyCode"),
+        booking_config.get("currency"),
+    ]
+    return next((currency for currency in (_normalize_currency_code(item) for item in candidates) if currency), "-")
+
+
+def _normalize_currency_code(value: Any) -> str:
+    currency = str(value or "").strip().upper()
+    return currency if currency and currency != "-" else ""
 
 
 def _extract_cabins_from_journeys(journeys: Any) -> list[Any]:

@@ -143,6 +143,10 @@
               <input id="bookRate" data-default="10" type="number" min="1" placeholder="10" />
             </label>
             <label>
+              <span>币种:</span>
+              <input id="currencyCode" data-default="MYR" placeholder="MYR" />
+            </label>
+            <label>
               <span>人数:</span>
               <input id="passengerRange" data-default="1-1" placeholder="1-1" />
             </label>
@@ -161,7 +165,6 @@
 
             <input id="taskId" class="hidden-field" />
             <input id="maxRuns" class="hidden-field" />
-            <input id="currencyCode" class="hidden-field" value="MYR" />
             <input id="callData" class="hidden-field" />
             <input id="callUrl" class="hidden-field" />
           </form>
@@ -191,6 +194,7 @@
                     <col class="import-col-cabin" />
                     <col class="import-col-delay" />
                     <col class="import-col-delay" />
+                    <col class="import-col-currency" />
                     <col class="import-col-people" />
                     <col class="import-col-valid" />
                     <col class="import-col-passport" />
@@ -207,6 +211,7 @@
                       <th>舱位</th>
                       <th>查询延迟</th>
                       <th>预计延迟</th>
+                      <th>币种</th>
                       <th>人数</th>
                       <th>PNR有效期</th>
                       <th>护照</th>
@@ -214,7 +219,7 @@
                     </tr>
                   </thead>
                   <tbody id="tableImportRows">
-                    <tr><td colspan="13" class="empty-row">暂无预览。</td></tr>
+                    <tr><td colspan="14" class="empty-row">暂无预览。</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -240,6 +245,7 @@
                   <col class="col-cabin" />
                   <col class="col-delay" />
                   <col class="col-delay" />
+                  <col class="col-currency" />
                   <col class="col-people" />
                   <col class="col-runs" />
                   <col class="col-status" />
@@ -257,6 +263,7 @@
                     <th>舱位</th>
                     <th>查询延迟</th>
                     <th>预计延迟</th>
+                    <th>币种</th>
                     <th>人数</th>
                     <th>执行次数</th>
                     <th>状态</th>
@@ -324,6 +331,10 @@
                 <input id="pnrCabinFilter" placeholder="如 H" />
               </label>
               <label class="pnr-filter-field">
+                <span>币种</span>
+                <input id="pnrCurrencyFilter" placeholder="MYR" />
+              </label>
+              <label class="pnr-filter-field">
                 <span>出发地</span>
                 <input id="pnrDepFilter" placeholder="出发地" />
               </label>
@@ -369,6 +380,7 @@
                 <col class="pnr-col-source" />
                 <col class="pnr-col-flight" />
                 <col class="pnr-col-cabin" />
+                <col class="pnr-col-currency" />
                 <col class="pnr-col-airport" />
                 <col class="pnr-col-airport" />
                 <col class="pnr-col-date" />
@@ -386,6 +398,7 @@
                   <th>Source</th>
                   <th>航班号</th>
                   <th>舱位</th>
+                  <th>币种</th>
                   <th>出发地</th>
                   <th>目的地</th>
                   <th>日期</th>

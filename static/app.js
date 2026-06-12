@@ -68,6 +68,7 @@ const els = {
   pnrSourceFilter: document.getElementById("pnrSourceFilter"),
   pnrFlightFilter: document.getElementById("pnrFlightFilter"),
   pnrCabinFilter: document.getElementById("pnrCabinFilter"),
+  pnrCurrencyFilter: document.getElementById("pnrCurrencyFilter"),
   pnrDepFilter: document.getElementById("pnrDepFilter"),
   pnrArrFilter: document.getElementById("pnrArrFilter"),
   pnrDateFilter: document.getElementById("pnrDateFilter"),
@@ -97,6 +98,7 @@ const TABLE_IMPORT_COLUMNS = [
   { key: "cabin", label: "舱位", aliases: ["舱位", "仓位", "cabin"] },
   { key: "intervalSeconds", label: "查询延迟", aliases: ["查询延迟", "查询间隔", "interval", "intervalseconds"] },
   { key: "bookRate", label: "预计延迟", aliases: ["预计延迟", "预计延迟秒", "bookrate"] },
+  { key: "currencyCode", label: "币种", aliases: ["币种", "货币", "currency", "currencycode"] },
   { key: "passengerRange", label: "人数", aliases: ["人数", "乘客数", "passengerrange", "passengers"] },
   { key: "pnrValidMinutes", label: "PNR有效期", aliases: ["pnr有效期", "有效期", "pnrvalidminutes"] },
   { key: "usePassport", label: "护照", aliases: ["护照", "使用护照", "usepassport", "passport"] },
@@ -147,7 +149,7 @@ function normalizeDate(raw) {
 }
 
 function buildPayloadFromForm() {
-  const currency = value("currencyCode") || "MYR";
+  const currency = valueOrDefault("currencyCode") || "MYR";
   const callUrl = value("callUrl");
   const pnrValidMinutes = numberOrNull("pnrValidMinutes");
   const taskData = {
@@ -421,7 +423,7 @@ function buildPayloadFromTableImport(raw) {
     cabin: (raw.cabin || value("cabin")).toUpperCase(),
     bookingConfig: {
       bookRate: positiveNumber(raw.bookRate) || numberOrDefault("bookRate"),
-      currencyCode: (value("currencyCode") || "MYR").toUpperCase(),
+      currencyCode: (raw.currencyCode || valueOrDefault("currencyCode") || "MYR").toUpperCase(),
     },
     ext: {
       usePassport: parseBoolean(raw.usePassport, $("usePassport").checked),
@@ -466,6 +468,7 @@ function validateTableImportPayload(payload, raw) {
   if (!taskData.flightNumber) errors.push("缺少航班号");
   if (!payload.intervalSeconds || payload.intervalSeconds <= 0) errors.push("查询延迟无效");
   if (!taskData.bookingConfig?.bookRate || taskData.bookingConfig.bookRate <= 0) errors.push("预计延迟无效");
+  if (!taskData.bookingConfig?.currencyCode) errors.push("缺少币种");
   if (!payload.passengerRange) errors.push("缺少人数");
   if (raw.pnrValidMinutes && !positiveNumber(raw.pnrValidMinutes)) errors.push("PNR有效期无效");
   return errors;
@@ -477,7 +480,7 @@ function renderTableImportPreview() {
   els.tableImportCount.textContent = items.length ? `${validCount} 行有效 / ${items.length} 行` : "选择表格文件后解析预览";
   els.tableImportSubmitBtn.disabled = validCount === 0;
   if (!items.length) {
-    els.tableImportRows.innerHTML = `<tr><td colspan="13" class="empty-row">暂无预览。</td></tr>`;
+    els.tableImportRows.innerHTML = `<tr><td colspan="14" class="empty-row">暂无预览。</td></tr>`;
     return;
   }
   els.tableImportRows.innerHTML = items.map(renderTableImportRow).join("");
@@ -505,6 +508,7 @@ function renderTableImportRow(item) {
       <td>${escapeHtml(data.cabin || "-")}</td>
       <td>${escapeHtml(item.payload.intervalSeconds || "-")}</td>
       <td>${escapeHtml(data.bookingConfig?.bookRate || "-")}</td>
+      <td>${escapeHtml(data.bookingConfig?.currencyCode || "-")}</td>
       <td>${escapeHtml(item.payload.passengerRange || "-")}</td>
       <td>${escapeHtml(data.ext?.pnrValidMinutes || "-")}</td>
       <td>${data.ext?.usePassport ? "是" : "否"}</td>
@@ -611,7 +615,7 @@ function renderTaskRow(task, options = {}) {
           </div>
         </td>
         <td class="task-id-cell">${renderTaskIdCell(task.task_id)}</td>
-        <td class="child-result-cell" colspan="7">${renderChildResult(task)}</td>
+        <td class="child-result-cell" colspan="8">${renderChildResult(task)}</td>
         <td>${escapeHtml(passengerText)}</td>
         <td>${escapeHtml(task.run_count || "-")}</td>
         <td>${renderStatusBadge(task)}</td>
@@ -635,6 +639,7 @@ function renderTaskRow(task, options = {}) {
       <td>${escapeHtml(taskData.cabin || "-")}</td>
       <td>${escapeHtml(task.interval_seconds || "-")}</td>
       <td>${escapeHtml(bookingConfig.bookRate || "-")}</td>
+      <td>${escapeHtml(bookingConfig.currencyCode || "-")}</td>
       <td>${escapeHtml(passengerText)}</td>
       <td>${escapeHtml(task.run_count || "-")}</td>
       <td>${renderStatusBadge(task)}</td>
@@ -843,7 +848,7 @@ function renderPnrs() {
   els.pnrCount.textContent = total ? `${start}-${end} / ${total} 条` : "0 条";
   if (!rows.length) {
     const emptyText = hasActivePnrFilters() ? "没有符合筛选条件的 PNR。" : "暂无成功 PNR 记录。";
-    els.pnrRows.innerHTML = `<tr><td colspan="14" class="empty-row">${emptyText}</td></tr>`;
+    els.pnrRows.innerHTML = `<tr><td colspan="15" class="empty-row">${emptyText}</td></tr>`;
     renderPnrPagination();
     return;
   }
@@ -856,6 +861,7 @@ function renderPnrs() {
           <td>${escapeHtml(row.source)}</td>
           <td>${escapeHtml(row.flightNumber)}</td>
           <td>${escapeHtml(row.cabin)}</td>
+          <td>${escapeHtml(row.currencyCode || "-")}</td>
           <td>${escapeHtml(row.depAirport)}</td>
           <td>${escapeHtml(row.arrAirport)}</td>
           <td>${escapeHtml(formatDepDate(row.depDate))}</td>
@@ -897,6 +903,7 @@ function filteredPnrRows() {
     if (filters.source && row.source !== filters.source) return false;
     if (filters.flightNumber && !includesText(row.flightNumber, filters.flightNumber)) return false;
     if (filters.cabin && !includesText(row.cabin, filters.cabin)) return false;
+    if (filters.currencyCode && !includesText(row.currencyCode, filters.currencyCode)) return false;
     if (filters.depAirport && !includesText(row.depAirport, filters.depAirport)) return false;
     if (filters.arrAirport && !includesText(row.arrAirport, filters.arrAirport)) return false;
     if (filters.depDate && !includesText(`${row.depDate} ${formatDepDate(row.depDate)}`, filters.depDate)) return false;
@@ -914,6 +921,7 @@ function currentPnrFilters() {
     source: value("pnrSourceFilter"),
     flightNumber: value("pnrFlightFilter"),
     cabin: value("pnrCabinFilter"),
+    currencyCode: value("pnrCurrencyFilter"),
     depAirport: value("pnrDepFilter"),
     arrAirport: value("pnrArrFilter"),
     depDate: value("pnrDateFilter"),
@@ -1381,6 +1389,7 @@ function bindEvents() {
     els.pnrPnrFilter,
     els.pnrFlightFilter,
     els.pnrCabinFilter,
+    els.pnrCurrencyFilter,
     els.pnrDepFilter,
     els.pnrArrFilter,
     els.pnrDateFilter,
@@ -1409,6 +1418,7 @@ function bindEvents() {
       "pnrSourceFilter",
       "pnrFlightFilter",
       "pnrCabinFilter",
+      "pnrCurrencyFilter",
       "pnrDepFilter",
       "pnrArrFilter",
       "pnrDateFilter",

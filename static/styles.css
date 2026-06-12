@@ -565,6 +565,7 @@ textarea {
 
 .table-import-preview .import-col-airport,
 .table-import-preview .import-col-cabin,
+.table-import-preview .import-col-currency,
 .table-import-preview .import-col-people,
 .table-import-preview .import-col-passport {
   width: 74px;
@@ -640,6 +641,7 @@ table {
 }
 
 .task-table .col-cabin,
+.task-table .col-currency,
 .task-table .col-people,
 .task-table .col-passport {
   width: 68px;
@@ -1744,6 +1746,10 @@ tbody tr.child-row.child-last td:first-child::before {
 
 .pnr-table .pnr-col-cabin {
   width: 3.8%;
+}
+
+.pnr-table .pnr-col-currency {
+  width: 4%;
 }
 
 .pnr-table .pnr-col-airport {

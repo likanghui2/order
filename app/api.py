@@ -125,6 +125,7 @@ def list_pnrs(
     source: str = "",
     flight_number: str = Query(default="", alias="flightNumber"),
     cabin: str = "",
+    currency_code: str = Query(default="", alias="currencyCode"),
     dep_airport: str = Query(default="", alias="depAirport"),
     arr_airport: str = Query(default="", alias="arrAirport"),
     dep_date: str = Query(default="", alias="depDate"),
@@ -140,6 +141,7 @@ def list_pnrs(
         "source": source,
         "flightNumber": flight_number,
         "cabin": cabin,
+        "currencyCode": currency_code,
         "depAirport": dep_airport,
         "arrAirport": arr_airport,
         "depDate": dep_date,
@@ -299,6 +301,8 @@ def _matches_pnr_filters(row: dict[str, Any], filters: dict[str, str], now: floa
         return False
     if filters["cabin"] and not _contains(row.get("cabin"), filters["cabin"]):
         return False
+    if filters["currencyCode"] and not _contains(row.get("currencyCode"), filters["currencyCode"]):
+        return False
     if filters["depAirport"] and not _contains(row.get("depAirport"), filters["depAirport"]):
         return False
     if filters["arrAirport"] and not _contains(row.get("arrAirport"), filters["arrAirport"]):
@@ -457,11 +461,11 @@ def _build_table_import_template() -> BytesIO:
     except ImportError as exc:
         raise HTTPException(status_code=500, detail="缺少 openpyxl 依赖，请更新 requirements-local.txt 后安装") from exc
 
-    headers = ["Source", "出发地", "目的地", "日期", "航班号", "舱位", "查询延迟", "预计延迟", "人数", "PNR有效期", "护照"]
+    headers = ["Source", "出发地", "目的地", "日期", "航班号", "舱位", "查询延迟", "预计延迟", "币种", "人数", "PNR有效期", "护照"]
     rows = [
         headers,
-        ["5JWEB", "SZX", "KUL", "2026-06-03", "AK127", "L", 30, 10, "1-3", 120, "是"],
-        ["VJWEB", "CAN", "SGN", "2026-06-07", "VJ3909", "H", 30, 10, "1-1", 60, "是"],
+        ["5JWEB", "SZX", "KUL", "2026-06-03", "AK127", "L", 30, 10, "MYR", "1-3", 120, "是"],
+        ["VJWEB", "CAN", "SGN", "2026-06-07", "VJ3909", "H", 30, 10, "VND", "1-1", 60, "是"],
     ]
 
     workbook = Workbook()
@@ -477,7 +481,7 @@ def _build_table_import_template() -> BytesIO:
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    widths = [14, 12, 12, 14, 14, 10, 12, 12, 12, 14, 10]
+    widths = [14, 12, 12, 14, 14, 10, 12, 12, 10, 12, 14, 10]
     for index, width in enumerate(widths, start=1):
         sheet.column_dimensions[get_column_letter(index)].width = width
     sheet.freeze_panes = "A2"

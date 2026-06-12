@@ -138,10 +138,10 @@ if __name__ == "__main__":
         "taskType": "shamBooking",
         "source": "VJWEB",
         "taskData": {
-            "depAirport": "SGN",
-            "arrAirport": "CAN",
+            "depAirport": "HKT",
+            "arrAirport": "CNX",
             "depDate": "20260802",
-            "flightNumber": "VJ3908",
+            "flightNumber": "VZ415",
             "cabin": "",
             "bookingConfig": {
                 "bookRate": 5,
