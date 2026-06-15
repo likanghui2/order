@@ -223,7 +223,7 @@ button {
 .current-section {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .tasks-workspace {
@@ -333,6 +333,86 @@ h2 {
 
 .section-head {
   margin-bottom: 12px;
+}
+
+.task-list-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.task-list-tools > #taskCount {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.bulk-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bulk-actions > span {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.text-button.danger {
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
+.text-button.danger:hover {
+  border-color: #fca5a5;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.text-button:disabled,
+.text-button:disabled:hover {
+  cursor: not-allowed;
+  border-color: var(--line);
+  background: #f1f5f9;
+  color: #94a3b8;
+  box-shadow: none;
+}
+
+.task-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.35fr) minmax(108px, 0.75fr) repeat(2, minmax(90px, 0.68fr)) minmax(116px, 0.78fr) minmax(112px, 0.78fr) repeat(3, minmax(82px, 0.58fr)) minmax(104px, 0.7fr) auto;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+
+.task-filter-control {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.task-filter-control span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.task-filter-bar .text-button {
+  height: 38px;
 }
 
 .inline-form {
@@ -617,7 +697,11 @@ table {
 
 .task-table {
   table-layout: fixed;
-  min-width: 1420px;
+  min-width: 1472px;
+}
+
+.task-table .col-select {
+  width: 46px;
 }
 
 .task-table .col-tree {
@@ -701,21 +785,33 @@ tbody tr.selected {
   background: #eff6ff;
 }
 
+tbody tr.bulk-selected {
+  background: #f0f7ff;
+}
+
+tbody tr.bulk-selected.selected {
+  background: #e0f2fe;
+}
+
 tbody tr.parent-row {
   background: #fff;
   font-weight: 700;
+}
+
+tbody tr.parent-row.bulk-selected {
+  background: #f0f7ff;
 }
 
 tbody tr.child-row {
   background: #f8fafc;
 }
 
-tbody tr.child-row td:first-child {
+tbody tr.child-row td:nth-child(2) {
   position: relative;
   padding-left: 22px;
 }
 
-tbody tr.child-row td:first-child::before {
+tbody tr.child-row td:nth-child(2)::before {
   content: "";
   position: absolute;
   left: 12px;
@@ -725,12 +821,36 @@ tbody tr.child-row td:first-child::before {
   background: #cbd5e1;
 }
 
-tbody tr.child-row.child-first td:first-child::before {
+tbody tr.child-row.child-first td:nth-child(2)::before {
   top: 7px;
 }
 
-tbody tr.child-row.child-last td:first-child::before {
+tbody tr.child-row.child-last td:nth-child(2)::before {
   bottom: 50%;
+}
+
+.select-cell {
+  text-align: center;
+}
+
+.task-select-checkbox {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 5px;
+  accent-color: var(--primary);
+  vertical-align: middle;
+}
+
+.task-select-checkbox:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
+.task-select-placeholder {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
 }
 
 .child-result-cell {
@@ -1821,6 +1941,10 @@ tbody tr.child-row.child-last td:first-child::before {
     grid-template-columns: repeat(4, minmax(118px, 1fr));
   }
 
+  .task-filter-bar {
+    grid-template-columns: repeat(5, minmax(118px, 1fr));
+  }
+
   .pnr-actions {
     align-self: flex-end;
   }
@@ -1851,6 +1975,7 @@ tbody tr.child-row.child-last td:first-child::before {
 
   .inline-form,
   .config-grid,
+  .task-filter-bar,
   .pnr-filters {
     grid-template-columns: 1fr 1fr;
   }
@@ -1868,6 +1993,7 @@ tbody tr.child-row.child-last td:first-child::before {
 
   .inline-form,
   .config-grid,
+  .task-filter-bar,
   .pnr-filters,
   .log-summary {
     grid-template-columns: 1fr;

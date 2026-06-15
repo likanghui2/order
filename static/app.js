@@ -16,6 +16,7 @@ const state = {
   activeView: "tasks",
   expandedTaskIds: new Set(),
   collapsedTaskIds: new Set(),
+  selectedTaskIds: new Set(),
   pnrDatePickerMonth: null,
   confirmResolver: null,
   confirmPreviousFocus: null,
@@ -32,6 +33,23 @@ const els = {
   tasksWorkspace: document.getElementById("tasksWorkspace"),
   taskRows: document.getElementById("taskRows"),
   taskCount: document.getElementById("taskCount"),
+  taskIdFilter: document.getElementById("taskIdFilter"),
+  taskSourceFilter: document.getElementById("taskSourceFilter"),
+  taskDepFilter: document.getElementById("taskDepFilter"),
+  taskArrFilter: document.getElementById("taskArrFilter"),
+  taskDateFilter: document.getElementById("taskDateFilter"),
+  taskFlightFilter: document.getElementById("taskFlightFilter"),
+  taskCabinFilter: document.getElementById("taskCabinFilter"),
+  taskCurrencyFilter: document.getElementById("taskCurrencyFilter"),
+  taskPeopleFilter: document.getElementById("taskPeopleFilter"),
+  taskStatusFilter: document.getElementById("taskStatusFilter"),
+  taskResetFiltersBtn: document.getElementById("taskResetFiltersBtn"),
+  selectedTaskCount: document.getElementById("selectedTaskCount"),
+  taskSelectAll: document.getElementById("taskSelectAll"),
+  bulkPauseBtn: document.getElementById("bulkPauseBtn"),
+  bulkResumeBtn: document.getElementById("bulkResumeBtn"),
+  bulkDeleteBtn: document.getElementById("bulkDeleteBtn"),
+  clearTaskSelectionBtn: document.getElementById("clearTaskSelectionBtn"),
   logSection: document.getElementById("logSection"),
   selectedTask: document.getElementById("selectedTask"),
   detailEmpty: document.getElementById("detailEmpty"),
@@ -205,6 +223,7 @@ async function loadHealth() {
 async function loadTasks() {
   state.tasks = await api("/api/tasks");
   rememberExpandableTasks();
+  pruneSelectedTasks();
   renderTasks();
   if (state.selectedTaskId && state.tasks.some((task) => task.task_id === state.selectedTaskId)) {
     await selectTask(state.selectedTaskId, false);
@@ -543,14 +562,24 @@ async function submitTableImport() {
 }
 
 function renderTasks() {
+  renderTaskFilterOptions();
   const childCount = state.tasks.filter((task) => task.parent_task_id).length;
   const rootCount = state.tasks.length - childCount;
-  els.taskCount.textContent = childCount ? `${rootCount} 个主任务 / ${childCount} 个子任务` : `${rootCount} 个任务`;
+  const filterActive = hasActiveTaskFilters();
+  const visibleRootCount = selectableTasks().length;
+  els.taskCount.textContent = filterActive
+    ? `${visibleRootCount} / ${rootCount} 个主任务`
+    : childCount ? `${rootCount} 个主任务 / ${childCount} 个子任务` : `${rootCount} 个任务`;
   if (!state.tasks.length) {
-    els.taskRows.innerHTML = `<tr><td colspan="14" class="empty-row">暂无任务，填写上方信息后点击添加任务。</td></tr>`;
+    els.taskRows.innerHTML = `<tr><td colspan="16" class="empty-row">暂无任务，填写上方信息后点击添加任务。</td></tr>`;
+    updateTaskBulkControls();
     return;
   }
-  els.taskRows.innerHTML = renderTaskTreeRows().join("");
+  const rows = renderTaskTreeRows();
+  els.taskRows.innerHTML = rows.length
+    ? rows.join("")
+    : `<tr><td colspan="16" class="empty-row">没有符合筛选条件的任务。</td></tr>`;
+  updateTaskBulkControls();
 }
 
 function rememberExpandableTasks() {
@@ -563,7 +592,116 @@ function rememberExpandableTasks() {
   });
 }
 
-function renderTaskTreeRows() {
+function allSelectableTasks() {
+  return state.tasks.filter((task) => !task.parent_task_id);
+}
+
+function selectableTasks() {
+  return filteredRootTasks();
+}
+
+function selectedTasks() {
+  const selectedIds = state.selectedTaskIds;
+  return selectableTasks().filter((task) => selectedIds.has(task.task_id));
+}
+
+function pruneSelectedTasks() {
+  const selectableIds = new Set(allSelectableTasks().map((task) => task.task_id));
+  state.selectedTaskIds.forEach((taskId) => {
+    if (!selectableIds.has(taskId)) state.selectedTaskIds.delete(taskId);
+  });
+}
+
+function updateTaskBulkControls() {
+  const selectable = selectableTasks();
+  const selected = selectedTasks();
+  const canPause = selected.some((task) => task.status === "ACTIVE" || task.in_flight);
+  const canResume = selected.some((task) => task.status !== "ACTIVE");
+  if (els.selectedTaskCount) {
+    els.selectedTaskCount.textContent = `已选 ${selected.length} 个`;
+  }
+  if (els.bulkPauseBtn) els.bulkPauseBtn.disabled = !canPause;
+  if (els.bulkResumeBtn) els.bulkResumeBtn.disabled = !canResume;
+  if (els.bulkDeleteBtn) els.bulkDeleteBtn.disabled = selected.length === 0;
+  if (els.clearTaskSelectionBtn) els.clearTaskSelectionBtn.disabled = selected.length === 0;
+  if (els.taskSelectAll) {
+    els.taskSelectAll.checked = Boolean(selectable.length) && selected.length === selectable.length;
+    els.taskSelectAll.indeterminate = selected.length > 0 && selected.length < selectable.length;
+    els.taskSelectAll.disabled = selectable.length === 0;
+  }
+}
+
+function toggleTaskSelection(taskId, checked) {
+  if (!selectableTasks().some((task) => task.task_id === taskId)) return;
+  if (checked) {
+    state.selectedTaskIds.add(taskId);
+  } else {
+    state.selectedTaskIds.delete(taskId);
+  }
+  renderTasks();
+}
+
+function setAllTaskSelection(checked) {
+  state.selectedTaskIds.clear();
+  if (checked) {
+    selectableTasks().forEach((task) => state.selectedTaskIds.add(task.task_id));
+  }
+  renderTasks();
+}
+
+function clearTaskSelection() {
+  state.selectedTaskIds.clear();
+  renderTasks();
+}
+
+function currentTaskFilters() {
+  return {
+    taskId: value("taskIdFilter"),
+    source: value("taskSourceFilter"),
+    depAirport: value("taskDepFilter"),
+    arrAirport: value("taskArrFilter"),
+    depDate: value("taskDateFilter"),
+    flightNumber: value("taskFlightFilter"),
+    cabin: value("taskCabinFilter"),
+    currencyCode: value("taskCurrencyFilter"),
+    passengerCount: value("taskPeopleFilter"),
+    status: value("taskStatusFilter"),
+  };
+}
+
+function hasActiveTaskFilters() {
+  return Object.values(currentTaskFilters()).some(Boolean);
+}
+
+function renderTaskFilterOptions() {
+  setSelectOptions(els.taskSourceFilter, "全部", uniqueValues([...state.sources, ...state.tasks.map((task) => task.source)]));
+}
+
+function taskMatchesFilter(task) {
+  const filters = currentTaskFilters();
+  const data = task.task_data || {};
+  const bookingConfig = data.bookingConfig || {};
+  const passengerText = `${task.passenger_range || ""} ${task.passenger_count || ""} ${data.ext?.passengerCount || ""}`;
+  if (filters.taskId && !includesText(task.task_id, filters.taskId)) return false;
+  if (filters.source && String(task.source || "").upper() !== filters.source.toUpperCase()) return false;
+  if (filters.depAirport && !includesText(data.depAirport, filters.depAirport)) return false;
+  if (filters.arrAirport && !includesText(data.arrAirport, filters.arrAirport)) return false;
+  if (filters.depDate && !includesText(`${data.depDate || ""} ${formatDepDate(data.depDate)}`, filters.depDate)) return false;
+  if (filters.flightNumber && !includesText(data.flightNumber, filters.flightNumber)) return false;
+  if (filters.cabin && !includesText(data.cabin, filters.cabin)) return false;
+  if (filters.currencyCode && !includesText(bookingConfig.currencyCode, filters.currencyCode)) return false;
+  if (filters.passengerCount && !includesText(passengerText, filters.passengerCount)) return false;
+  if (filters.status && !taskMatchesStatusFilter(task, filters.status)) return false;
+  return true;
+}
+
+function taskMatchesStatusFilter(task, status) {
+  if (status === "RUNNING") return Boolean(task.in_flight);
+  if (status === "FAILED") return statusMeta(task).variant === "failed";
+  return String(task.status || "").toUpperCase() === status;
+}
+
+function taskTreeData() {
   const childrenByParent = new Map();
   const rootRows = [];
   const taskIds = new Set(state.tasks.map((task) => task.task_id));
@@ -576,15 +714,33 @@ function renderTaskTreeRows() {
       rootRows.push(task);
     }
   });
+  return { childrenByParent, rootRows };
+}
 
+function filteredRootTasks() {
+  const { childrenByParent, rootRows } = taskTreeData();
+  if (!hasActiveTaskFilters()) return rootRows;
+  return rootRows.filter((task) => {
+    const children = childrenByParent.get(task.task_id) || [];
+    return taskMatchesFilter(task) || children.some(taskMatchesFilter);
+  });
+}
+
+function renderTaskTreeRows() {
+  const { childrenByParent, rootRows } = taskTreeData();
+  const filterActive = hasActiveTaskFilters();
   const rows = [];
   rootRows.forEach((task) => {
     const children = childrenByParent.get(task.task_id) || [];
+    const taskMatches = taskMatchesFilter(task);
+    const matchingChildren = filterActive ? children.filter(taskMatchesFilter) : children;
+    if (filterActive && !taskMatches && !matchingChildren.length) return;
     rows.push(renderTaskRow(task, { childCount: children.length }));
-    if (task.is_parent && state.expandedTaskIds.has(task.task_id)) {
-      children.forEach((child, index) => {
+    if (task.is_parent && (filterActive || state.expandedTaskIds.has(task.task_id))) {
+      const visibleChildren = filterActive && !taskMatches ? matchingChildren : children;
+      visibleChildren.forEach((child, index) => {
         rows.push(renderTaskRow(child, {
-          childPosition: index === 0 ? "first" : index === children.length - 1 ? "last" : "middle",
+          childPosition: index === 0 ? "first" : index === visibleChildren.length - 1 ? "last" : "middle",
         }));
       });
     }
@@ -600,6 +756,7 @@ function renderTaskRow(task, options = {}) {
   const taskData = task.task_data || {};
   const bookingConfig = taskData.bookingConfig || {};
   const selected = task.task_id === state.selectedTaskId ? " selected" : "";
+  const bulkSelected = state.selectedTaskIds.has(task.task_id) ? " bulk-selected" : "";
   const isChild = Boolean(task.parent_task_id);
   const isParent = Boolean(task.is_parent);
   const childClass = isChild && options.childPosition ? ` child-${options.childPosition}` : "";
@@ -608,6 +765,7 @@ function renderTaskRow(task, options = {}) {
   if (isChild) {
     return `
       <tr class="${selected} child-row${childClass}" data-task-id="${escapeHtml(task.task_id)}">
+        <td class="select-cell"><span class="task-select-placeholder" aria-hidden="true"></span></td>
         <td>
           <div class="task-name">
             ${treeControl(task, 0)}
@@ -624,7 +782,16 @@ function renderTaskRow(task, options = {}) {
       </tr>`;
   }
   return `
-    <tr class="${selected} ${isParent ? "parent-row" : ""} ${isChild ? "child-row" : ""}${childClass}" data-task-id="${escapeHtml(task.task_id)}">
+    <tr class="${selected}${bulkSelected} ${isParent ? "parent-row" : ""} ${isChild ? "child-row" : ""}${childClass}" data-task-id="${escapeHtml(task.task_id)}">
+      <td class="select-cell">
+        <input
+          class="task-select-checkbox"
+          type="checkbox"
+          data-task-select="${escapeAttr(task.task_id)}"
+          aria-label="选择任务 ${escapeAttr(task.task_id)}"
+          ${bulkSelected ? "checked" : ""}
+        />
+      </td>
       <td>
         <div class="task-name">
           ${treeControl(task, options.childCount || 0)}
@@ -1223,6 +1390,53 @@ async function handleTaskAction(action, taskId) {
   await loadTasks();
 }
 
+async function handleBulkTaskAction(action) {
+  const allSelectedTasks = selectedTasks();
+  const tasks = action === "pause"
+    ? allSelectedTasks.filter((task) => task.status === "ACTIVE" || task.in_flight)
+    : action === "resume"
+      ? allSelectedTasks.filter((task) => task.status !== "ACTIVE")
+      : allSelectedTasks;
+  if (!tasks.length) {
+    toast(action === "resume" ? "选中任务里没有可开始的任务" : action === "pause" ? "选中任务里没有可暂停的任务" : "请先选择任务");
+    return;
+  }
+  if (action === "delete") {
+    const confirmed = await showConfirmDialog({
+      title: "删除选中任务",
+      message: `确认删除选中的 ${tasks.length} 个任务？父任务删除后会同时移除关联子任务和执行记录。`,
+      confirmText: "删除选中",
+    });
+    if (!confirmed) return;
+  }
+
+  let successCount = 0;
+  const failures = [];
+  for (const task of tasks) {
+    try {
+      const suffixByAction = {
+        delete: "",
+        pause: "/pause",
+        resume: "/resume",
+      };
+      const method = action === "delete" ? "DELETE" : "POST";
+      await api(`/api/tasks/${encodeURIComponent(task.task_id)}${suffixByAction[action]}`, { method });
+      successCount += 1;
+    } catch (error) {
+      failures.push(`${task.task_id}: ${error.message || error}`);
+    }
+  }
+  if (!failures.length) {
+    const actionText = action === "delete" ? "删除" : action === "resume" ? "开始" : "暂停";
+    toast(`已${actionText} ${successCount} 个任务`);
+  } else {
+    toast(`${successCount} 个成功，${failures.length} 个失败`);
+    console.warn("批量任务操作失败", failures);
+  }
+  state.selectedTaskIds.clear();
+  await loadTasks();
+}
+
 function copyTaskToForm(task) {
   const data = task.task_data || {};
   const booking = data.bookingConfig || {};
@@ -1461,7 +1675,53 @@ function bindEvents() {
   els.clearLogBtn.addEventListener("click", () => {
     clearSelectedTask();
   });
+  [
+    els.taskIdFilter,
+    els.taskDepFilter,
+    els.taskArrFilter,
+    els.taskDateFilter,
+    els.taskFlightFilter,
+    els.taskCabinFilter,
+    els.taskCurrencyFilter,
+    els.taskPeopleFilter,
+  ].forEach((input) => {
+    if (input) input.addEventListener("input", renderTasks);
+  });
+  [els.taskSourceFilter, els.taskStatusFilter].forEach((select) => {
+    if (select) select.addEventListener("change", renderTasks);
+  });
+  els.taskResetFiltersBtn.addEventListener("click", () => {
+    [
+      "taskIdFilter",
+      "taskSourceFilter",
+      "taskDepFilter",
+      "taskArrFilter",
+      "taskDateFilter",
+      "taskFlightFilter",
+      "taskCabinFilter",
+      "taskCurrencyFilter",
+      "taskPeopleFilter",
+      "taskStatusFilter",
+    ].forEach((id) => {
+      const element = $(id);
+      if (element) element.value = "";
+    });
+    renderTasks();
+  });
+  els.taskSelectAll.addEventListener("change", () => {
+    setAllTaskSelection(els.taskSelectAll.checked);
+  });
+  els.bulkPauseBtn.addEventListener("click", () => handleBulkTaskAction("pause").catch(showError));
+  els.bulkResumeBtn.addEventListener("click", () => handleBulkTaskAction("resume").catch(showError));
+  els.bulkDeleteBtn.addEventListener("click", () => handleBulkTaskAction("delete").catch(showError));
+  els.clearTaskSelectionBtn.addEventListener("click", clearTaskSelection);
+  els.taskRows.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("input[data-task-select]");
+    if (!checkbox) return;
+    toggleTaskSelection(checkbox.dataset.taskSelect, checkbox.checked);
+  });
   els.taskRows.addEventListener("click", (event) => {
+    if (event.target.closest("input[data-task-select]")) return;
     const copyButton = event.target.closest("button[data-copy-task-id]");
     if (copyButton) {
       copyText(copyButton.dataset.copyTaskId, "任务 ID").catch(showError);
