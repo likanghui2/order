@@ -192,13 +192,7 @@ def task_decorator(log):
                 log.info(f'任务耗时：{time.perf_counter() - start_time}')
                 response_data.task_id = request_task_info.task_id
                 response_data.source = request_task_info.source
-                if callback_data:
-                    response_data.call_data = callback_data.get('callData')
-                    response_data = response_data.model_dump_json(by_alias=True)
-                    if callback_data.get('callUrl'):
-                        task_call(response_data, callback_data['callUrl'])
-                else:
-                    response_data = response_data.model_dump_json(by_alias=True)
+                response_data = response_data.model_dump_json(by_alias=True)
                 log.info(response_data, '任务结果')
             except Exception as e:
                 log.error(traceback.format_exc())

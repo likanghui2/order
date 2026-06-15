@@ -52,6 +52,21 @@ RELOAD_DIRS=app,static,task
 `LOCAL_SHAM_CONCURRENCY=0` 表示不限制本地并发；设置为 `3`、`5` 等正整数时，才会限制同时执行数量。
 `RELOAD=1` 表示开启热更新，默认监听 `app`、`static` 和 `task`；如需关闭，用 `RELOAD=0 /bin/bash run-local-sham.sh`。
 
+## SQLite 损坏处理
+
+如果日志出现 `sqlite3.DatabaseError: database disk image is malformed`，先停止本地服务，再处理数据库文件。
+
+```bash
+python tools/sqlite_maintenance.py --db local_sham_booking.db --check
+python tools/sqlite_maintenance.py --db local_sham_booking.db --recover
+```
+
+`--recover` 会先备份原库，再尽量把可读的 `tasks`、`attempts`、`pnr_records`、`source_proxy_configs` 迁到新库。如果恢复失败或不需要保留旧任务，可以备份后重建空库：
+
+```bash
+python tools/sqlite_maintenance.py --db local_sham_booking.db --rebuild-empty
+```
+
 ## 页面使用
 
 - 顶部填写 source、出发地、目的地、日期、航班号、舱位、查询延迟、预计延迟、人数、PNR有效期后点击“添加任务”。

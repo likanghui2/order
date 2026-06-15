@@ -33,7 +33,7 @@ REDIS = redis_util.RedisUtil(
 VJ_DEVICE_ID_PREFIX_KEY = "vj:web:x_device_id_prefix"
 VJ_DEVICE_ID_PREFIX_RENDER_KEY = "vj:web:x_device_id_prefix_render"
 VJ_DEVICE_ID_PREFIX_RENDER_AES_KEY = "vj:web:x_device_id_prefix_render_aes_key"
-VJ_DEVICE_ID_PREFIX_TTL = 24 * 3600
+VJ_DEVICE_ID_PREFIX_TTL = 6 * 3600
 VJ_HOME_URL = "https://www.vietjetair.com"
 VJ_ORIGIN_URL = "https://www.vietjetair.com"
 
@@ -58,6 +58,10 @@ class WebScript:
         if suffix:
             x_device_id = f"{x_device_id}-{suffix}"
         return x_device_id
+
+    def z(self):
+        self.___get_device_id_prefix(),
+        self.___get_device_id_prefix_render()
 
     def zero_trust_headers(self, url):
         if not self.__zero_trust_config:
@@ -126,6 +130,46 @@ class WebScript:
         self.__set_cache_value(VJ_DEVICE_ID_PREFIX_KEY, prefix)
         return prefix
 
+    def ___get_device_id_prefix(self):
+        url = "https://vietjetcms-api.vietjetair.com/api/v1/cms-config/DEVICE_ID_PREFIX"
+        headers = {
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:150.0) Gecko/20100101 Firefox/150.0",
+            "accept": "application/json",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "zh-CN,zh;q=0.9,zh-TW;q=0.8,zh-HK;q=0.7,en-US;q=0.6,en;q=0.5",
+            "origin": "https://www.vietjetair.com",
+            "sec-gpc": "1",
+            "referer": "https://www.vietjetair.com/",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "priority": "u=0"
+        }
+        rep = self.__http_utils.get(url=url, headers=headers, timeout=self.__timeout)
+        prefix = rep.to_dict().get("cmsConfig")['value']
+        self.__set_cache_value(VJ_DEVICE_ID_PREFIX_KEY, prefix)
+        return prefix
+    def ___get_device_id_prefix_render(self):
+        url = "https://vietjetcms-api.vietjetair.com/api/v1/cms-config/DEVICE_ID_PREFIX_RENDER"
+        headers = {
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:150.0) Gecko/20100101 Firefox/150.0",
+            "accept": "application/json",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "zh-CN,zh;q=0.9,zh-TW;q=0.8,zh-HK;q=0.7,en-US;q=0.6,en;q=0.5",
+            "origin": "https://www.vietjetair.com",
+            "sec-gpc": "1",
+            "referer": "https://www.vietjetair.com/",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "priority": "u=0"
+        }
+        rep = self.__http_utils.get(url=url, headers=headers, timeout=self.__timeout)
+        encrypted_prefix = rep.to_dict().get("cmsConfig")['value']
+        aes_key = self.__get_device_id_prefix_render_aes_key()
+        prefix = self.__decrypt_device_id_prefix_render(encrypted_prefix, aes_key)
+        self.__set_cache_value(VJ_DEVICE_ID_PREFIX_RENDER_KEY, prefix)
+        return prefix
     def __get_device_id_prefix_render(self):
         prefix = self.__get_cache_value(VJ_DEVICE_ID_PREFIX_RENDER_KEY)
         if prefix:
@@ -274,9 +318,12 @@ class WebScript:
         [(ServiceStateEnum.API_RESPONSE_FAILED, None), (ServiceStateEnum.RESPONSE_STATE_ERROR, None)])
     def aws(self):
         try:
-            token_info = requests.get('http://154.36.184.199:9002/api/token').json()
+            token_info = requests.post('http://api.zjdanli.com/aws/token', json={
+                "appid": "7j58fx77bifxt2jhx01pwoek7asgp6xm",
+                "siteUrl": "www.vietjetair.com"
+            }).json()
             print(token_info)
-            if token_info['code'] == 200:
+            if token_info['code'] == '0':
                 return token_info
             else:
                 raise ServiceError(ServiceStateEnum.RESPONSE_STATE_ERROR, token_info['message'])
@@ -323,14 +370,13 @@ class WebScript:
         response = self.__http_utils.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/search-flight',
                                            headers=headers, data=params, timeout=self.__timeout)
 
+        if response.status in [202, 201]:
+            raise ServiceError(ServiceStateEnum.AWS_CHECK_FAILURE)
         if response.status == 405 or response.to_dict().get('travelOptions') or response.to_dict() == {}:
-            self.delete_device_id_prefix_cache()
             raise ServiceError(ServiceStateEnum.AWS_CHECK_FAILURE)
         if response.status != 200:
-            if response.status in [202, 201]:
-                raise ServiceError(ServiceStateEnum.AWS_CHECK_FAILURE)
             if response.status == 403:
-                raise ServiceError(ServiceStateEnum.ROBOT_CHECK, )
+                raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
             raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY,
                                response.status)
         return response.to_dict()
@@ -379,8 +425,9 @@ class WebScript:
                    "Accept-Encoding": "gzip, deflate, br",
                    "Accept-Language": "zh-CN,zh;q=0.9"
                    }
-        response = self.__http_utils.get(url=f'https://miniprogram.vietjetair.com.cn/app-api/yuejie/vietjet/searchFlight?{urlencode( data)}',
-                                          headers=headers, timeout=self.__timeout)
+        response = self.__http_utils.get(
+            url=f'https://miniprogram.vietjetair.com.cn/app-api/yuejie/vietjet/searchFlight?{urlencode(data)}',
+            headers=headers, timeout=self.__timeout)
         if response.status != 200:
             raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY,
                                response.status)

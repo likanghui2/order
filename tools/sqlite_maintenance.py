@@ -24,6 +24,39 @@ def timestamp() -> str:
     return time.strftime("%Y%m%d-%H%M%S")
 
 
+def ps_quote(path: Path) -> str:
+    return "'" + str(path).replace("'", "''") + "'"
+
+
+def print_locked_file_help(db_path: Path, replacement_db: Path | None, stamp: str, error: PermissionError) -> None:
+    print("")
+    print(f"数据库文件仍被占用，无法替换: {error}")
+    print("先关闭本地服务、PyCharm 运行窗口、PyCharm Database 面板或其他 SQLite 工具。")
+    print("可在 PowerShell 查看/结束占用本项目的 Python 进程:")
+    print(
+        "  Get-CimInstance Win32_Process | "
+        "Where-Object { $_.CommandLine -like '*PycharmProjects\\\\order*' } | "
+        "Select-Object ProcessId,CommandLine"
+    )
+    print(
+        "  Get-CimInstance Win32_Process | "
+        "Where-Object { $_.CommandLine -like '*PycharmProjects\\\\order*' } | "
+        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
+    )
+    if replacement_db:
+        print("")
+        print(f"恢复库已生成但尚未替换: {replacement_db}")
+        print("停掉占用进程后，可手工替换:")
+        print(f"  Rename-Item -LiteralPath {ps_quote(db_path)} -NewName {ps_quote(Path(db_path.name + '.malformed-' + stamp))}")
+        for related in related_paths(db_path)[1:]:
+            print(
+                f"  if (Test-Path -LiteralPath {ps_quote(related)}) "
+                f"{{ Rename-Item -LiteralPath {ps_quote(related)} -NewName {ps_quote(Path(related.name + '.malformed-' + stamp))} }}"
+            )
+        print(f"  Move-Item -LiteralPath {ps_quote(replacement_db)} -Destination {ps_quote(db_path)}")
+        print(f"  .\\.venv\\Scripts\\python.exe tools\\sqlite_maintenance.py --db {ps_quote(db_path)} --check")
+
+
 def backup_related_files(db_path: Path, stamp: str) -> Path:
     backup_dir = db_path.parent / "db_backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -91,7 +124,11 @@ def create_empty_database(db_path: Path) -> None:
 def rebuild_empty(db_path: Path) -> None:
     stamp = timestamp()
     backup_related_files(db_path, stamp)
-    archive_related_files(db_path, stamp)
+    try:
+        archive_related_files(db_path, stamp)
+    except PermissionError as exc:
+        print_locked_file_help(db_path, None, stamp, exc)
+        raise RuntimeError("数据库文件被占用，请停止相关进程后重试 --rebuild-empty") from exc
     create_empty_database(db_path)
     ok, message = check_integrity(db_path)
     if not ok:
@@ -122,8 +159,12 @@ def recover_to_new_database(db_path: Path) -> None:
                 copied_counts[table] = f"跳过: {exc}"
         new_conn.commit()
 
-    archive_related_files(db_path, stamp)
-    temp_db.replace(db_path)
+    try:
+        archive_related_files(db_path, stamp)
+        temp_db.replace(db_path)
+    except PermissionError as exc:
+        print_locked_file_help(db_path, temp_db, stamp, exc)
+        raise RuntimeError("数据库文件被占用，请停止相关进程后手工替换或重试 --recover") from exc
     ok, message = check_integrity(db_path)
     if not ok:
         raise RuntimeError(f"恢复后完整性仍异常: {message}")

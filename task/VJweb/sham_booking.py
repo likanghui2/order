@@ -1,7 +1,5 @@
 import copy
-import json
 from datetime import datetime
-from time import sleep
 from typing import List
 
 from common.decorators.task_decorator import task_decorator
@@ -33,29 +31,7 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
     raw_cabin = sham_booking_data.cabin or ""
     use_gls_booking = "00" in raw_cabin
     target_cabin = raw_cabin.replace("00", "")
-
-    def _search_and_validate_min(web_service, adult_count):
-        journey_list = web_service.search_min(
-            dep_airport=sham_booking_data.dep_airport,
-            arr_airport=sham_booking_data.arr_airport,
-            dep_date=dep_date,
-            adt_number=adult_count,
-            chd_number=0,
-            infant_count=0,
-            currency_code=currency_code, is_hold=True
-        )
-        journey_list = FlightUtil.number_filter(journey_list, sham_booking_data.flight_number)
-
-        if len(journey_list) != 1:
-            raise ServiceError(ServiceStateEnum.NO_AVAILABLE_FLIGHT_NUMBER, sham_booking_data.flight_number)
-
-        journey = journey_list[0]
-        current_bundle = journey.bundles[0]
-        if target_cabin and current_bundle.cabin != target_cabin:
-            LOG.info(f'当前舱位[{current_bundle.cabin}]，目标舱位[{target_cabin}]，当前余座[{current_bundle.seat}]')
-            raise ServiceError(ServiceStateEnum.NO_AVAILABLE_CABIN, target_cabin, current_bundle.cabin)
-
-        return journey
+    passenger_count = sham_booking_data.ext.get('passengerCount', 1)
 
     def _search_and_validate(web_service, adult_count):
         # web_service.initialize_session()
@@ -75,7 +51,7 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
             raise ServiceError(ServiceStateEnum.NO_AVAILABLE_FLIGHT_NUMBER, sham_booking_data.flight_number)
 
         journey = journey_list[0]
-        current_bundle = journey.bundles[0]
+        current_bundle = FlightUtil.bundle_verify(journey, "Eco")
         if target_cabin and current_bundle.cabin != target_cabin:
             LOG.info(f'当前舱位[{current_bundle.cabin}]，目标舱位[{target_cabin}]，当前余座[{current_bundle.seat}]')
             raise ServiceError(ServiceStateEnum.NO_AVAILABLE_CABIN, target_cabin, current_bundle.cabin)
@@ -123,16 +99,19 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
         else:
             service = script_cache['value']
         try:
-            LOG.info(f'第{attempt_no}次押位前重新搜索')
-            search_journey = _search_and_validate(service, adult_count=1)
-            search_bundle = FlightUtil.bundle_verify(search_journey, "Eco")
-            seat_count = search_bundle.seat
-            LOG.info(f'第{attempt_no}次押位校验通过，舱位[{search_bundle.cabin}]，余座[{seat_count}]')
-
-            passengers: List[PassengerInfoModel] = ShamBookingUtil.build_sham_passenger_info(seat_count, True)
+            if passenger_count < 6:
+                LOG.info(f'第{attempt_no}次押位前重新搜索')
+                search_journey = _search_and_validate(service, adult_count=1)
+                search_bundle = FlightUtil.bundle_verify(search_journey, "Eco")
+                LOG.info(f'第{attempt_no}次押位校验通过，舱位[{search_bundle.cabin}]，余座[{search_bundle.seat}]')
+                seat_count = min(9, search_bundle.seat)
+            else:
+                seat_count = passenger_count
             booking_journey = _search_and_validate(service, adult_count=seat_count)
             booking_bundle = FlightUtil.bundle_verify(booking_journey, "Eco")
             LOG.info(f'第{attempt_no}次押位二次校验通过，舱位[{booking_bundle.cabin}]，余座[{booking_bundle.seat}]')
+            seat_count = min(9, booking_bundle.seat)
+            passengers: List[PassengerInfoModel] = ShamBookingUtil.build_sham_passenger_info(seat_count, True)
 
             order_data = copy.deepcopy(response_order_data)
         except ServiceError as e:
@@ -171,7 +150,7 @@ if __name__ == '__main__':
                     "arrAirport": "CAN",
                     "depDate": "20260830",
                     "flightNumber": "VJ3908",
-                    "cabin": "00",
+                    "cabin": "W00",
                     "bookingConfig": {
                         "bookRate": 10,
                         "currencyCode": "CNY"
@@ -179,6 +158,10 @@ if __name__ == '__main__':
                     "callbackData": {
                         "callData": "",
                         "callUrl": "http://trip-api.bjrakd.com/triplex-foreign-external/external/task/pressureback/seatNewCallback"
+                    },
+                    'ext': {
+                        "usePassport": True,
+                        "passengerCount": 9
                     }
                 }
             }
