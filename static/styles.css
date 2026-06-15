@@ -392,7 +392,15 @@ h2 {
 
 .task-filter-bar {
   display: grid;
-  grid-template-columns: minmax(180px, 1.35fr) minmax(108px, 0.75fr) repeat(2, minmax(90px, 0.68fr)) minmax(116px, 0.78fr) minmax(112px, 0.78fr) repeat(3, minmax(82px, 0.58fr)) minmax(104px, 0.7fr) auto;
+  grid-template-columns:
+    minmax(170px, 1.45fr)
+    minmax(104px, 0.8fr)
+    repeat(2, minmax(84px, 0.7fr))
+    minmax(112px, 0.85fr)
+    minmax(106px, 0.85fr)
+    repeat(3, minmax(76px, 0.62fr))
+    minmax(96px, 0.72fr)
+    auto;
   align-items: end;
   gap: 10px;
   min-width: 0;
@@ -1942,7 +1950,7 @@ tbody tr.child-row.child-last td:nth-child(2)::before {
   }
 
   .task-filter-bar {
-    grid-template-columns: repeat(5, minmax(118px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   }
 
   .pnr-actions {
@@ -1975,9 +1983,12 @@ tbody tr.child-row.child-last td:nth-child(2)::before {
 
   .inline-form,
   .config-grid,
-  .task-filter-bar,
   .pnr-filters {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .task-filter-bar {
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   }
 
   .table-import-tools {
@@ -1993,10 +2004,13 @@ tbody tr.child-row.child-last td:nth-child(2)::before {
 
   .inline-form,
   .config-grid,
-  .task-filter-bar,
   .pnr-filters,
   .log-summary {
     grid-template-columns: 1fr;
+  }
+
+  .task-filter-bar {
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   }
 
   .page-title {
