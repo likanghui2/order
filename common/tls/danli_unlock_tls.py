@@ -61,7 +61,14 @@ class DanliUnlockTls(TlsAbstract):
 
     def clear_cookies(self):
         self.get_cookie_dict().clear()
-
+    @http_log_decorator()
+    def patch(self,
+              url: str,
+              headers: dict[str, Any],
+              data: Union[dict, str, bytes, None] = None,
+              timeout: int = 60,
+              **keywords) -> ResponseInfoModel:
+        return self._execute_request(method="PATCH", url=url, headers=headers, data=data, timeout=timeout)
     @http_log_decorator()
     def get(self, url: str, headers: dict[str, Any], timeout: int = 60, **keywords) -> ResponseInfoModel:
         return self._execute_request(method="GET", url=url, headers=headers, timeout=timeout, data={})

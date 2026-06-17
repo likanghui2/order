@@ -16,6 +16,7 @@ from common.decorators.retry_decorator import retry_decorator
 from common.global_variable import GlobalVariable
 from common.model.proxy_Info_model import ProxyInfoModel
 from common.tls.curl_cffi_tls import CurlCffiTls
+from common.tls.danli_unlock_tls import DanliUnlockTls
 from common.utils import redis_util
 from common.utils.aes_ciphering import AesCiphering
 from common.utils.ezcaptcha_util import EzCaptcha
@@ -44,11 +45,14 @@ class WebScript:
         self.__aws_token = None
         self.__http_utils = CurlCffiTls()
         self.__ua = Config.USER_AGENT
-        self.__proxy = proxy_info
         self.__http_utils.initialize(proxy_info_data=proxy_info)
+        self.__proxy = proxy_info
         self.__timeout = 10
         self.__vj_device_uuid = str(uuid4())
         self.__zero_trust_config = None
+        self.__danli_unlock = DanliUnlockTls("7j58fx77bifxt2jhx01pwoek7asgp6xm", site="vietjetair",
+                                             auth_manage_cookie=False)
+        self.__danli_unlock.initialize(proxy_info_data=self.__proxy)
 
     def device_id(self):
         prefix = self.__get_device_id_prefix()
@@ -149,6 +153,7 @@ class WebScript:
         prefix = rep.to_dict().get("cmsConfig")['value']
         self.__set_cache_value(VJ_DEVICE_ID_PREFIX_KEY, prefix)
         return prefix
+
     def ___get_device_id_prefix_render(self):
         url = "https://vietjetcms-api.vietjetair.com/api/v1/cms-config/DEVICE_ID_PREFIX_RENDER"
         headers = {
@@ -170,6 +175,7 @@ class WebScript:
         prefix = self.__decrypt_device_id_prefix_render(encrypted_prefix, aes_key)
         self.__set_cache_value(VJ_DEVICE_ID_PREFIX_RENDER_KEY, prefix)
         return prefix
+
     def __get_device_id_prefix_render(self):
         prefix = self.__get_cache_value(VJ_DEVICE_ID_PREFIX_RENDER_KEY)
         if prefix:
@@ -340,12 +346,12 @@ class WebScript:
         except Exception:
             return False
 
-    @retry_decorator(
-        [(ServiceStateEnum.ROBOT_CHECK, token_macie), (ServiceStateEnum.AWS_CHECK_FAILURE, token_macie),
-         (ServiceStateEnum.CURL_EXCEPTION, token_macie)])
+    # @retry_decorator(
+    #     [(ServiceStateEnum.ROBOT_CHECK, token_macie), (ServiceStateEnum.AWS_CHECK_FAILURE, token_macie),
+    #      (ServiceStateEnum.CURL_EXCEPTION, token_macie)])
     def search_flight(self, data):
-        if not self.__aws_token:
-            self.token_macie()
+        # if not self.__aws_token:
+        #     self.token_macie()
         headers = {
             'accept': 'application/json',
             'accept-language': 'zh-cn',
@@ -363,12 +369,12 @@ class WebScript:
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
             'user-agent': self.__ua,
-            "X-Aws-Waf-Token": self.__aws_token,
+            # "X-Aws-Waf-Token": self.__aws_token,
         }
-        headers.update(self.zero_trust_headers('/api/v1/search-flight'))
+        # headers.update(self.zero_trust_headers('/booking/api/v1/search-flight'))
         params = {"encrypted": data}
-        response = self.__http_utils.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/search-flight',
-                                           headers=headers, data=params, timeout=self.__timeout)
+        response = self.__danli_unlock.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/search-flight',
+                                             headers=headers, data=params, timeout=self.__timeout)
 
         if response.status in [202, 201]:
             raise ServiceError(ServiceStateEnum.AWS_CHECK_FAILURE)
@@ -486,7 +492,7 @@ class WebScript:
             'user-agent': Config.USER_AGENT,
             "X-Aws-Waf-Token": self.__aws_token,
         }
-        headers.update(self.zero_trust_headers('/api/v1/insurances'))
+        headers.update(self.zero_trust_headers('/booking/api/v1/insurances'))
         params = {"encrypted": data}
         response = self.__http_utils.post(url=f'https://vietjet-api.vietjetair.com/booking/api/v1/insurances',
                                           headers=headers, data=params, timeout=self.__timeout)
@@ -515,7 +521,7 @@ class WebScript:
             'user-agent': Config.USER_AGENT,
             "X-Aws-Waf-Token": self.__aws_token,
         }
-        headers.update(self.zero_trust_headers('/api/v1/seatSelectionOptions'))
+        headers.update(self.zero_trust_headers('/booking/api/v1/seatSelectionOptions'))
         params = {"encrypted": data}
         response = self.__http_utils.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/seatSelectionOptions',
                                            headers=headers, data=params, timeout=self.__timeout)
@@ -544,7 +550,7 @@ class WebScript:
             'user-agent': Config.USER_AGENT,
             "X-Aws-Waf-Token": self.__aws_token,
         }
-        headers.update(self.zero_trust_headers('/api/v1/payment/methods-by-bookingKey'))
+        headers.update(self.zero_trust_headers('/booking/api/v1/payment/methods-by-bookingKey'))
         params = {"encrypted": data}
         response = self.__http_utils.patch(
             url='https://vietjet-api.vietjetair.com/booking/api/v1/payment/methods-by-bookingKey',
@@ -574,7 +580,7 @@ class WebScript:
             'user-agent': Config.USER_AGENT,
             "X-Aws-Waf-Token": self.__aws_token,
         }
-        headers.update(self.zero_trust_headers('/api/v1/ancillaryOptions'))
+        headers.update(self.zero_trust_headers('/booking/api/v1/ancillaryOptions'))
         params = {"encrypted": data}
         response = self.__http_utils.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/ancillaryOptions',
                                            headers=headers, data=params, timeout=self.__timeout)
@@ -639,7 +645,7 @@ class WebScript:
             'user-agent': Config.USER_AGENT,
             "X-Aws-Waf-Token": self.__aws_token,
         }
-        headers.update(self.zero_trust_headers('/api/v1/quotations/summary'))
+        headers.update(self.zero_trust_headers('/booking/api/v1/quotations/summary'))
         params = {"encrypted": data}
         response = self.__http_utils.post(url=f'https://vietjet-api.vietjetair.com/booking/api/v1/quotations/summary',
                                           headers=headers, data=params, timeout=self.__timeout)
@@ -671,7 +677,7 @@ class WebScript:
         [(ServiceStateEnum.CURL_EXCEPTION, reset_proxy_ip),
          (ServiceStateEnum.HTTP_TIMEOUT, reset_proxy_ip)])
     def reservations(self, data, authorization):
-        self.__aws_token = self.aws_v2()
+        # self.__aws_token = self.aws_v2()
         headers = {
             'accept': 'application/json',
             'accept-language': 'zh-cn',
@@ -690,11 +696,11 @@ class WebScript:
             'sec-fetch-site': 'same-site',
             'user-agent': Config.USER_AGENT,
             "Authorization": f"Bearer {authorization}" if authorization else "",
-            "X-Aws-Waf-Token": self.__aws_token,
+            # "X-Aws-Waf-Token": self.__aws_token,
         }
-        headers.update(self.zero_trust_headers('/api/v1/reservations'))
+        # headers.update(self.zero_trust_headers('/booking/api/v1/reservations'))
         params = {"encrypted": data}
-        response = self.__http_utils.post(url=f'https://vietjet-api.vietjetair.com/booking/api/v1/reservations',
+        response = self.__danli_unlock.post(url=f'https://vietjet-api.vietjetair.com/booking/api/v1/reservations',
                                           headers=headers, data=params, timeout=60)
         if response.status != 200:
             if response.status == 401:
