@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 
 from lxml import etree
 
@@ -17,30 +17,61 @@ from common.utils.string_util import StringUtil
 from flights.vietjet.config import Config
 
 
-class AppFlightParser:
+class FlightParser:
 
     @classmethod
-    def journey_info_parser(cls, flight_data: dict)-> List[FlightJourneyModel]:
+    def journey_info_parser(cls,
+                            flight_data: dict,
+                            baggage_data: Optional[dict] = None,
+                            target_dates: Optional[List[str]] = None) -> List[FlightJourneyModel]:
         result_data_list = []
-        for index, (key, itinerarie) in enumerate(flight_data["travelOption"].items(), start=1):
-            for fare in itinerarie:
-                segments = cls.segment_parser(fare['flights'], index=index)
-                if len(segments) != 1:
-                    continue
-                bundles = cls.bundle_parser(fare['fareOptions'])
-                if not bundles:
-                    continue
-                result_data_list.append(FlightJourneyModel(
-                    journeyKey="",
-                    segments=segments,
-                    bundles=bundles,
-                    depAirport=segments[0].dep_airport,
-                    arrAirport=segments[-1].arr_airport,
-                    depTime=segments[0].dep_time,
-                    arrTime=segments[-1].arr_time,
-                ))
+        route_index_by_date = {date: index for index, date in enumerate(target_dates or [], start=1)}
+
+        for fare, index in cls._iter_travel_options(flight_data, route_index_by_date):
+            segments = cls.segment_parser(fare['flights'], index=index)
+            if len(segments) != 1:
+                continue
+            bundles = cls.bundle_parser(fare['fareOptions'], baggage_info=baggage_data or {}, segments=segments)
+            if not bundles:
+                continue
+            result_data_list.append(FlightJourneyModel(
+                journeyKey="",
+                segments=segments,
+                bundles=bundles,
+                depAirport=segments[0].dep_airport,
+                arrAirport=segments[-1].arr_airport,
+                depTime=segments[0].dep_time,
+                arrTime=segments[-1].arr_time,
+                ext=cls.journey_ext(fare),
+            ))
 
         return result_data_list
+
+    @staticmethod
+    def journey_ext(fare: dict) -> dict:
+        city_pair = fare.get("cityPair") or {}
+        route_type = city_pair.get("routeType") or {}
+        ext = {}
+        if city_pair:
+            ext["cityPair"] = city_pair
+        if route_type:
+            ext["routeType"] = route_type
+            ext["routeTypeIdentifier"] = route_type.get("identifier")
+        return ext
+
+    @classmethod
+    def _iter_travel_options(cls, flight_data: dict, route_index_by_date: dict):
+        if "travelOption" in flight_data:
+            for index, (_, itineraries) in enumerate(flight_data["travelOption"].items(), start=1):
+                for fare in itineraries:
+                    yield fare, index
+            return
+
+        for fare in flight_data.get("travelOptionData") or []:
+            departure_date = fare.get("departureDate")
+            if route_index_by_date and departure_date not in route_index_by_date:
+                continue
+            yield fare, route_index_by_date.get(departure_date, 1)
 
     @classmethod
     def segment_parser(cls, segs_data: List[dict], index: int) -> List[FlightSegmentModel]:
@@ -52,8 +83,12 @@ class AppFlightParser:
             dep_airport = segment['departure']['airport']['code']
             arr_airport = segment['arrival']['airport']['code']
 
-            dep_time = datetime.strptime(segment['departure']['localScheduledTime'], '%Y-%m-%d %H:%M:%S')
-            arr_time = datetime.strptime(segment['arrival']['localScheduledTime'], '%Y-%m-%d %H:%M:%S')
+            dep_time = DateUtil.string_to_date_auto(segment['departure']['localScheduledTime'])
+            arr_time = DateUtil.string_to_date_auto(segment['arrival']['localScheduledTime'])
+            if dep_time is None:
+                dep_time = datetime.strptime(segment['departure']['localScheduledTime'], '%Y-%m-%d %H:%M:%S')
+            if arr_time is None:
+                arr_time = datetime.strptime(segment['arrival']['localScheduledTime'], '%Y-%m-%d %H:%M:%S')
 
             segment_list.append(FlightSegmentModel(
                 segmentKey=segment_key,
@@ -174,9 +209,14 @@ class AppFlightParser:
         return baggage_list
 
     @classmethod
-    def bundle_parser(cls, data: List[dict]) -> List[FlightBundleModel]:
+    def bundle_parser(cls,
+                      data: List[dict],
+                      baggage_info: Optional[dict] = None,
+                      segments: Optional[List[FlightSegmentModel]] = None) -> List[FlightBundleModel]:
         bundle_list = []
         for bundle in data:
+            if not bundle.get('bookingKey'):
+                continue
             seats = bundle.get('availability', 0)
             if seats <= 0:
                 continue
@@ -192,7 +232,8 @@ class AppFlightParser:
                         adt_fare = money
                     if i['passengerApplicability']['child']:
                         chd_fare = money
-                elif i['chargeType']['code'] != 'FA' and i['chargeType']['description'] != 'Seat Assignment':
+                charge_description = i.get('description') or (i.get('chargeType') or {}).get('description')
+                if i['chargeType']['code'] != 'FA' and charge_description != 'Seat Assignment':
                     if i['passengerApplicability']['adult']:
                         adt_tax += money
                     if i['passengerApplicability']['child']:
@@ -207,20 +248,25 @@ class AppFlightParser:
                 currency=currency,
 
             )
-            code = bundle["fareClass"]["code"]
+            booking_code = bundle.get("fareClass") or bundle.get("bookingCode") or {}
+            code = booking_code.get("code", "")
             ssr_info = FlightSsrInfoModel()
             temp_ssr_list = []
-            product_tag = bundle['fareType']['identifier']
+            fare_type = bundle.get("fareType") or {}
+            product_tag = fare_type.get("identifier") or fare_type.get("description") or code
             ssr_info.baggage = temp_ssr_list
             bundle_list.append(FlightBundleModel(
                 priceInfo=price_info,
                 ssrInfo=ssr_info,
                 code=product_tag,
                 cabinLevel="Y",
-                cabin=bundle['fareClass']['code'][:1],
+                cabin=code[:1],
                 fareKey=bundle['bookingKey'],
                 productTag=product_tag,
                 seat=seats,
                 freightRateType=FreightRateTypeEnum.PT,
             ))
         return bundle_list
+
+
+AppFlightParser = FlightParser
