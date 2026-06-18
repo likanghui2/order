@@ -5,6 +5,7 @@ import random
 import re
 import string
 import time
+from time import sleep
 from typing import Optional
 from urllib.parse import urlencode, urljoin
 from uuid import uuid4
@@ -17,7 +18,7 @@ from common.global_variable import GlobalVariable
 from common.model.proxy_Info_model import ProxyInfoModel
 from common.tls.curl_cffi_tls import CurlCffiTls
 from common.tls.danli_unlock_tls import DanliUnlockTls
-from common.utils import redis_util
+from common.utils import redis_util, log_util
 from common.utils.aes_ciphering import AesCiphering
 from common.utils.ezcaptcha_util import EzCaptcha
 from common.utils.nocaptcha_util import NoCaptchaUtil
@@ -45,9 +46,10 @@ class WebScript:
         self.__aws_token = None
         self.__http_utils = CurlCffiTls()
         self.__ua = Config.USER_AGENT
-        self.__http_utils.initialize(proxy_info_data=proxy_info)
+        self.__http_utils.initialize(proxy_info_data=proxy_info, impersonate="chrome146")
         self.__proxy = proxy_info
         self.__timeout = 10
+        self.__log = log_util.LogUtil('vietjetWebScript')
         self.__vj_device_uuid = str(uuid4())
         self.__zero_trust_config = None
         self.__danli_unlock = DanliUnlockTls("7j58fx77bifxt2jhx01pwoek7asgp6xm", site="vietjetair",
@@ -79,17 +81,19 @@ class WebScript:
         if suffix:
             x_device_id = f"{x_device_id}-{suffix}"
 
+        signature_key = render_prefix or "FALLBACK_ZERO_TRUST_KEY"
+        client_machine_id = hashlib.sha256(
+            f"{self.__vj_device_uuid}{signature_key}".encode("utf-8")
+        ).hexdigest()
         request_time = str(int(time.time() * 1000))
         request_nonce = str(uuid4())
-        signature_text = f"{url}:{request_time}:{self.__vj_device_uuid}:{request_nonce}"
-        signature = hmac.new(render_prefix.encode("utf-8"),
+        signature_text = f"{url}:{request_time}:{client_machine_id}:{request_nonce}"
+        signature = hmac.new(signature_key.encode("utf-8"),
                              signature_text.encode("utf-8"),
                              hashlib.sha256).hexdigest()
         return {
             "X-Device-ID": x_device_id,
-            "X-Client-Machine-ID": hashlib.sha256(
-                f"{self.__vj_device_uuid}{render_prefix}".encode("utf-8")
-            ).hexdigest(),
+            "X-Client-Machine-ID": client_machine_id,
             "X-Request-Time": request_time,
             "X-Request-Nonce": request_nonce,
             "X-Signature": signature
@@ -319,6 +323,7 @@ class WebScript:
 
     def reset_proxy_ip(self):
         self.__http_utils.initialize(self.__proxy)
+        self.__danli_unlock.initialize(proxy_info_data=self.__proxy)
 
     @retry_decorator(
         [(ServiceStateEnum.API_RESPONSE_FAILED, None), (ServiceStateEnum.RESPONSE_STATE_ERROR, None)])
@@ -350,8 +355,8 @@ class WebScript:
     #     [(ServiceStateEnum.ROBOT_CHECK, token_macie), (ServiceStateEnum.AWS_CHECK_FAILURE, token_macie),
     #      (ServiceStateEnum.CURL_EXCEPTION, token_macie)])
     def search_flight(self, data):
-        # if not self.__aws_token:
-        #     self.token_macie()
+        if not self.__aws_token:
+            self.token_macie()
         headers = {
             'accept': 'application/json',
             'accept-language': 'zh-cn',
@@ -369,12 +374,12 @@ class WebScript:
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
             'user-agent': self.__ua,
-            # "X-Aws-Waf-Token": self.__aws_token,
+            "X-Aws-Waf-Token": self.__aws_token,
         }
-        # headers.update(self.zero_trust_headers('/booking/api/v1/search-flight'))
+        headers.update(self.zero_trust_headers('/booking/api/v1/search-flight'))
         params = {"encrypted": data}
-        response = self.__danli_unlock.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/search-flight',
-                                             headers=headers, data=params, timeout=self.__timeout)
+        response = self.__http_utils.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/search-flight',
+                                           headers=headers, data=params, timeout=self.__timeout)
 
         if response.status in [202, 201]:
             raise ServiceError(ServiceStateEnum.AWS_CHECK_FAILURE)
@@ -674,16 +679,17 @@ class WebScript:
         return verify_token
 
     @retry_decorator(
-        [(ServiceStateEnum.CURL_EXCEPTION, reset_proxy_ip),
-         (ServiceStateEnum.HTTP_TIMEOUT, reset_proxy_ip)])
-    def reservations(self, data, authorization):
-        # self.__aws_token = self.aws_v2()
+        [(ServiceStateEnum.CURL_EXCEPTION, None),
+         (ServiceStateEnum.HTTP_TIMEOUT, None),
+         (ServiceStateEnum.ROBOT_CHECK, None)])
+    def reservations(self, data, authorization, request_id=None, session_id=None):
         headers = {
             'accept': 'application/json',
             'accept-language': 'zh-cn',
             'cache-control': 'no-cache',
             'content-language': 'zh-cn',
             'content-type': 'application/json',
+            'accept-encoding': 'gzip, deflate, br, zstd',
             'origin': 'https://www.vietjetair.com',
             'pragma': 'no-cache',
             'priority': 'u=1, i',
@@ -694,23 +700,50 @@ class WebScript:
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
-            'user-agent': Config.USER_AGENT,
+            'user-agent': self.__ua,
             "Authorization": f"Bearer {authorization}" if authorization else "",
             # "X-Aws-Waf-Token": self.__aws_token,
         }
-        # headers.update(self.zero_trust_headers('/booking/api/v1/reservations'))
+        headers.update(self.zero_trust_headers('/booking/api/v1/reservations'))
         params = {"encrypted": data}
-        response = self.__danli_unlock.post(url=f'https://vietjet-api.vietjetair.com/booking/api/v1/reservations',
-                                          headers=headers, data=params, timeout=60)
+        url = 'https://vietjet-api.vietjetair.com/booking/api/v1/reservations'
+        query = {}
+        if request_id:
+            query["requestId"] = request_id
+        if session_id:
+            query["sessionId"] = session_id
+        if query:
+            url = f"{url}?{urlencode(query)}"
+        response = self.__danli_unlock.post(url=url,
+                                            headers=headers, data=params, timeout=60)
         if response.status != 200:
+            self.__log.error(
+                f"reservations请求失败，status[{response.status}]，url[{url}]，"
+                f"headers[{dict(response.headers)}]，body[{response.to_text()[:1000]}]"
+            )
+            if response.status == 403:
+                raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
+            if response.status == 429:
+                retry_after = response.headers.get("Retry-After", 15)
+                try:
+                    retry_after = int(float(retry_after))
+                except (TypeError, ValueError):
+                    retry_after = 15
+                wait_seconds = retry_after + random.uniform(2, 6)
+                self.__log.info(f"reservations触发限速，等待[{wait_seconds:.1f}]秒后重试")
+                time.sleep(wait_seconds)
+                raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
             if response.status == 401:
                 raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "Invalid authorization")
-            if response.status == 400 and response.to_dict()["detail"]["errorKey"] == "LIMIT_PAYLATER_BOOKING":
+            response_data = response.to_dict()
+            response_detail = response_data.get("detail") or {}
+            error_key = response_detail.get("errorKey") or response_data.get("errorKey")
+            if response.status == 400 and error_key == "LIMIT_PAYLATER_BOOKING":
                 raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "达到最大占位限制")
-            if response.status == 400 and response.to_dict()["detail"]["errorKey"] == "FARE_OR_SEAT_NOT_AVAILABLE":
+            if response.status == 400 and error_key == "FARE_OR_SEAT_NOT_AVAILABLE":
                 raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "抢位失败")
-            if response.status == 400 and response.to_dict().get("message"):
-                raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, response.to_dict().get("message"))
+            if response.status == 400 and response_data.get("message"):
+                raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, response_data.get("message"))
             raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY,
                                response.status)
         return response.to_dict()

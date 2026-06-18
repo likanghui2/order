@@ -59,7 +59,7 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
         return journey
 
     def _booking(web_service, journey, passengers, booking_bundle, order_data):
-        booking_func = web_service.booking_gls if use_gls_booking else web_service.booking
+        booking_func = web_service.booking_gls
         later_response, _ = booking_func(
             journey=journey,
             passenger_infos=passengers,
@@ -99,15 +99,15 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
         else:
             service = script_cache['value']
         try:
-            if passenger_count < 6:
-                LOG.info(f'第{attempt_no}次押位前重新搜索')
-                search_journey = _search_and_validate(service, adult_count=1)
-                search_bundle = FlightUtil.bundle_verify(search_journey, "Eco")
-                LOG.info(f'第{attempt_no}次押位校验通过，舱位[{search_bundle.cabin}]，余座[{search_bundle.seat}]')
-                seat_count = min(9, search_bundle.seat)
-            else:
-                seat_count = passenger_count
-            booking_journey = _search_and_validate(service, adult_count=seat_count)
+            # if passenger_count < 6:
+            #     LOG.info(f'第{attempt_no}次押位前重新搜索')
+            #     search_journey = _search_and_validate(service, adult_count=1)
+            #     search_bundle = FlightUtil.bundle_verify(search_journey, "Eco")
+            #     LOG.info(f'第{attempt_no}次押位校验通过，舱位[{search_bundle.cabin}]，余座[{search_bundle.seat}]')
+            #     seat_count = min(9, search_bundle.seat)
+            # else:
+            #     seat_count = passenger_count
+            booking_journey = _search_and_validate(service, adult_count=passenger_count)
             booking_bundle = FlightUtil.bundle_verify(booking_journey, "Eco")
             LOG.info(f'第{attempt_no}次押位二次校验通过，舱位[{booking_bundle.cabin}]，余座[{booking_bundle.seat}]')
             seat_count = min(9, booking_bundle.seat)
@@ -150,10 +150,10 @@ if __name__ == '__main__':
                     "arrAirport": "CAN",
                     "depDate": "20260830",
                     "flightNumber": "VJ3908",
-                    "cabin": "W00",
+                    "cabin": "U",
                     "bookingConfig": {
                         "bookRate": 10,
-                        "currencyCode": "CNY"
+                        "currencyCode": "VND"
                     },
                     "callbackData": {
                         "callData": "",
@@ -161,7 +161,7 @@ if __name__ == '__main__':
                     },
                     'ext': {
                         "usePassport": True,
-                        "passengerCount": 9
+                        "passengerCount": 1
                     }
                 }
             }

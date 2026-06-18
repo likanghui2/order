@@ -170,14 +170,14 @@ class DanliUnlockTls(TlsAbstract):
 
     def _response_to_data(self, response: requests.Response, url: str) -> ResponseInfoModel:
         text = response.text
-        if "akm风控拦截" in text:
-            raise ServiceError(ServiceStateEnum.AKM_RISK_CHECK_FAILED)
-        if response.status_code == 428 and "verify_url" in text:
-            raise ServiceError(ServiceStateEnum.AKM_RISK_CHECK_FAILED)
-        if response.status_code == 403 and "Access Denied" in text:
-            raise ServiceError(ServiceStateEnum.AKM_RISK_CHECK_FAILED)
-        if response.status_code == 403 and ("Just a moment" in text or "Attention Required" in text):
-            raise ServiceError(ServiceStateEnum.CLOUD_FLARE_CHECK_FAILURE)
+        # if "akm风控拦截" in text:
+        #     raise ServiceError(ServiceStateEnum.AKM_RISK_CHECK_FAILED)
+        # if response.status_code == 428 and "verify_url" in text:
+        #     raise ServiceError(ServiceStateEnum.AKM_RISK_CHECK_FAILED)
+        # if response.status_code == 403 and "Access Denied" in text:
+        #     raise ServiceError(ServiceStateEnum.AKM_RISK_CHECK_FAILED)
+        # if response.status_code == 403 and ("Just a moment" in text or "Attention Required" in text):
+        #     raise ServiceError(ServiceStateEnum.CLOUD_FLARE_CHECK_FAILURE)
 
         return ResponseInfoModel(
             data_bytes=response.content,

@@ -2,6 +2,7 @@ import base64
 import copy
 import decimal
 import hashlib
+import json
 import random
 import time
 import uuid
@@ -91,7 +92,13 @@ class WebService:
         if not is_hold:
             special_baggage_data = self.__web_script.journey_config(request_id=request_id, city_code=city_code)
         flight_data = self.__web_script.search_flight(data)
-        self.__session_id = flight_data['sessionId']
+        new_session_id = flight_data['sessionId']
+        if (self.__session_id
+                and self.__session_has_client_machine_id(self.__session_id)
+                and not self.__session_has_client_machine_id(new_session_id)):
+            self.__log.info("保留已有带机器绑定的sessionId")
+        else:
+            self.__session_id = new_session_id
         if is_hold:
             baggage_data = {}
         else:
@@ -106,6 +113,16 @@ class WebService:
                     z.price_info.child_ticket_price = z.price_info.adult_ticket_price
 
         return journey_info_model
+
+    @staticmethod
+    def __session_has_client_machine_id(session_id):
+        try:
+            payload = session_id.split('.')[1]
+            payload += '=' * (-len(payload) % 4)
+            data = json.loads(base64.urlsafe_b64decode(payload))
+            return bool(data.get('XClientMachineId'))
+        except Exception:
+            return False
 
     def search_min(self,
                    dep_airport: str,
@@ -379,21 +396,16 @@ class WebService:
                 action = str(uuid.uuid4()).replace('-', '')
             else:
                 data['payment'] = {
-                    "identifier": "PL6",
+                    "identifier": "VJVNQR",
                     "body": {},
                     "bank": "",
-                    "threadPayment": "Paylater"
-                } if not is_gpay else {
-                    "body": {},
-                    "bank": "",
-                    "identifier": "VJPGGLE",
-                    "threadPayment": "GPAY"
+                    "threadPayment": "PaymentController"
                 }
                 action = str(uuid.uuid4()).replace('-', '')
-            data['captcha-data'] = {
-                'action': f'quotation_{action}',
-                'token': recaptcha_token,
-            }
+            # data['captcha-data'] = {
+            #     'action': f'quotation_{action}',
+            #     'token': recaptcha_token,
+            # }
         duration_depature = journey_segments[0].ext['flight_time']
         departure_ticket_type = product_tag
         dep_airport = journey_segments[0].dep_airport
@@ -474,15 +486,28 @@ class WebService:
         del data['isEsim']
         del data['isPaylater']
         del data['isPrefetch']
+        data.pop('isGpayInternational', None)
+        data.pop('isWhatsapp', None)
+        captcha_data = data.get('captcha-data') or {}
+        if not captcha_data.get('token'):
+            data.pop('captcha-data', None)
+        session_id = data.get('sessionId')
+        request_id = self.request_id_get()
+        data['requestId'] = request_id
         if need_pay is False:
+            # data['payment'] = {
+            #     "body": {},
+            #     "identifier": "PL6",
+            #     "threadPayment": "Paylater"
+            # } if not is_gpay else {
+            #     "body": {},
+            #     "identifier": "VJPGGLE",
+            #     "threadPayment": "GPAY"
+            # }
             data['payment'] = {
-                "body": {},
-                "identifier": "PL6",
-                "threadPayment": "Paylater"
-            } if not is_gpay else {
-                "body": {},
-                "identifier": "VJPGGLE",
-                "threadPayment": "GPAY"
+                "identifier": "VJVNQR",
+                "threadPayment": "PaymentController",
+                "body": {}
             }
         else:
             card_number = payment_info.card_number
@@ -510,12 +535,12 @@ class WebService:
                 }
             }
         data['customerToken'] = ""
-        # data['bookingKeyReturn'] = ""
-        data['requestId'] = self.request_id_get()
-        add_signature = VietjetSearchUtils.add_signature(data)
+        add_signature = VietjetSearchUtils.add_reservations_signature(data)
         request_data = VietjetSearchUtils.encrypt(add_signature)
         response = self.__web_script.reservations(request_data,
-                                                  authorization=self.authorization if not is_gpay else None)
+                                                  authorization=self.authorization if not is_gpay else None,
+                                                  request_id=request_id,
+                                                  session_id=session_id)
         return response, add_signature
 
     @staticmethod

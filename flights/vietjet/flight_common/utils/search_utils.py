@@ -95,6 +95,11 @@ class VietjetSearchUtils:
         return o
 
     @staticmethod
+    def add_reservations_signature(o: dict) -> dict:
+        o.pop("_signature", None)
+        return VietjetSearchUtils.add_signature(o)
+
+    @staticmethod
     def rsa_encrypt(message):
         rsa_public_key = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAok58IrYXjeFjb6hPgrcv\nKis43ARDVIqowS2AJKivDp4+8uKDCWnjzBZTsuVvwKPzvVCxBzON2/DPpHU3wnRt\ndKSVzWju7HMKhuLxe04FsVw8+xvZTmguBj4jTczNLSLjK13lQr46J8j7JrmVUlPq\nGxIL/Bd3HNAIFuarZQkDsgx5fvdNrMbmT4edr1b3A8wRkhfo9tuE5Tmlx0YVUwyb\nzcI6hgLggCfNwwaClXyBt08NbGSIBcKYKjiQErND0EOnWcGyto7EhkpgGRfAeESo\n3hbmsiabThLd4t9iOWVHFSl+7B0q+1IGFjSo9qkvNdMUI4ZYdIKq+nCHufpuFMl7\nSwIDAQAB\n-----END PUBLIC KEY-----"
         rsa_key = RSA.importKey(rsa_public_key)
