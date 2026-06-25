@@ -376,7 +376,7 @@ def _build_demo_task_data():
             "arrAirport": "CAN",
             "depDate": "20260729",
             "flightNumber": "VJ3908",
-            "cabin": "Z",
+            "cabin": "W",
             "bookingConfig": {
                 "bookRate": 10,
                 "currencyCode": 'VND',

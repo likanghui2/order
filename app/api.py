@@ -345,7 +345,10 @@ def _safe_float(value: Any) -> Optional[float]:
 
 def _normalize_payload(request: TaskPayload, fallback_task_id: Optional[str] = None) -> dict[str, Any]:
     source = normalize_source(request.source)
+    if not source:
+        raise HTTPException(status_code=400, detail="缺少必填字段：Source")
     task_id = request.task_id or fallback_task_id or _generated_task_id(request.task_data, source)
+    _validate_required_task_fields(request.task_data)
     return {
         "task_id": task_id,
         "source": source,
@@ -356,6 +359,35 @@ def _normalize_payload(request: TaskPayload, fallback_task_id: Optional[str] = N
         "first_run_at": request.first_run_at,
         "status": ACTIVE,
     }
+
+
+def _validate_required_task_fields(task_data: dict[str, Any]) -> None:
+    booking_config = task_data.get("bookingConfig") or {}
+    ext = task_data.get("ext") or {}
+    required = [
+        (task_data.get("depAirport"), "出发地"),
+        (task_data.get("arrAirport"), "目的地"),
+        (task_data.get("depDate"), "日期"),
+        (task_data.get("flightNumber"), "航班号"),
+        (task_data.get("cabin"), "舱位"),
+        (booking_config.get("currencyCode"), "币种"),
+    ]
+    missing = [label for value, label in required if not _clean_optional(value)]
+    raw_pnr_valid_minutes = _first_present(ext, "pnrValidMinutes", "pnrValidityMinutes", "pnrValidMinute")
+    if not _clean_optional(raw_pnr_valid_minutes):
+        missing.append("PNR有效期")
+    if missing:
+        raise HTTPException(status_code=400, detail=f"缺少必填字段：{'、'.join(missing)}")
+    pnr_valid_minutes = _safe_float(raw_pnr_valid_minutes)
+    if pnr_valid_minutes is None or pnr_valid_minutes <= 0:
+        raise HTTPException(status_code=400, detail="PNR有效期必须大于 0")
+
+
+def _first_present(data: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in data:
+            return data.get(key)
+    return None
 
 
 def _create_task_tree(payload: dict[str, Any], passenger_range: str, passenger_counts: list[int]) -> dict[str, Any]:

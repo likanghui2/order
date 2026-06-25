@@ -13,6 +13,9 @@
         "bookRate": 10,
         "currencyCode": "PHP"
       },
+      "ext": {
+        "pnrValidMinutes": 30
+      },
       "callbackData": {
         "callData": "",
         "callUrl": ""

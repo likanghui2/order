@@ -106,6 +106,16 @@ const els = {
 };
 
 const PNR_PAGE_SIZE = 100;
+const REQUIRED_TASK_FIELDS = [
+  { id: "source", label: "Source" },
+  { id: "depAirport", label: "出发地" },
+  { id: "arrAirport", label: "目的地" },
+  { id: "depDate", label: "日期", validate: (raw) => /^\d{8}$/.test(normalizeDate(raw)), invalidMessage: "日期格式应为 YYYY-MM-DD 或 YYYYMMDD" },
+  { id: "flightNumber", label: "航班号" },
+  { id: "cabin", label: "舱位" },
+  { id: "currencyCode", label: "币种" },
+  { id: "pnrValidMinutes", label: "PNR有效期", validate: (raw) => Boolean(positiveNumber(raw)), invalidMessage: "PNR有效期必须大于 0" },
+];
 
 const TABLE_IMPORT_COLUMNS = [
   { key: "source", label: "Source", aliases: ["source", "数据源", "站点"] },
@@ -145,6 +155,38 @@ function numberOrDefault(id) {
   return raw ? Number(raw) : null;
 }
 
+function setTaskFieldInvalid(id, invalid) {
+  const element = $(id);
+  if (!element) return;
+  element.classList.toggle("is-invalid", invalid);
+  element.setAttribute("aria-invalid", invalid ? "true" : "false");
+}
+
+function clearTaskFieldInvalid(id) {
+  setTaskFieldInvalid(id, false);
+}
+
+function validateTaskForm() {
+  const errors = [];
+  let firstInvalid = null;
+  for (const field of REQUIRED_TASK_FIELDS) {
+    const raw = value(field.id);
+    let message = "";
+    if (!raw) {
+      message = `缺少${field.label}`;
+    } else if (field.validate && !field.validate(raw)) {
+      message = field.invalidMessage || `${field.label}无效`;
+    }
+    setTaskFieldInvalid(field.id, Boolean(message));
+    if (message) {
+      errors.push(message);
+      if (!firstInvalid) firstInvalid = $(field.id);
+    }
+  }
+  if (firstInvalid) firstInvalid.focus();
+  return errors;
+}
+
 async function api(path, options = {}) {
   const isFormData = options.body instanceof FormData;
   const headers = isFormData ? {} : { "Content-Type": "application/json" };
@@ -167,15 +209,15 @@ function normalizeDate(raw) {
 }
 
 function buildPayloadFromForm() {
-  const currency = valueOrDefault("currencyCode") || "MYR";
+  const currency = value("currencyCode");
   const callUrl = value("callUrl");
   const pnrValidMinutes = numberOrNull("pnrValidMinutes");
   const taskData = {
-    depAirport: valueOrDefault("depAirport").toUpperCase(),
-    arrAirport: valueOrDefault("arrAirport").toUpperCase(),
-    depDate: normalizeDate(valueOrDefault("depDate")),
-    flightNumber: valueOrDefault("flightNumber").toUpperCase(),
-    cabin: valueOrDefault("cabin").toUpperCase(),
+    depAirport: value("depAirport").toUpperCase(),
+    arrAirport: value("arrAirport").toUpperCase(),
+    depDate: normalizeDate(value("depDate")),
+    flightNumber: value("flightNumber").toUpperCase(),
+    cabin: value("cabin").toUpperCase(),
     bookingConfig: {
       bookRate: numberOrDefault("bookRate"),
       currencyCode: currency.toUpperCase(),
@@ -204,10 +246,8 @@ function buildPayloadFromForm() {
 async function loadSources() {
   const data = await api("/api/sources");
   state.sources = data.sources || [];
-  els.source.innerHTML = state.sources.map((source) => `<option value="${source}">${source}</option>`).join("");
-  if (state.sources.includes("5JWEB")) {
-    els.source.value = "5JWEB";
-  }
+  els.source.innerHTML = `<option value=""></option>${state.sources.map((source) => `<option value="${source}">${source}</option>`).join("")}`;
+  els.source.value = "";
   renderPnrFilterOptions();
   await loadProxyConfigs();
   renderConfig();
@@ -435,14 +475,14 @@ function tableCell(cells, index) {
 function buildPayloadFromTableImport(raw) {
   const pnrValidMinutes = positiveNumber(raw.pnrValidMinutes || value("pnrValidMinutes"));
   const taskData = {
-    depAirport: (raw.depAirport || valueOrDefault("depAirport")).toUpperCase(),
-    arrAirport: (raw.arrAirport || valueOrDefault("arrAirport")).toUpperCase(),
-    depDate: normalizeDate(raw.depDate || valueOrDefault("depDate")),
-    flightNumber: (raw.flightNumber || valueOrDefault("flightNumber")).toUpperCase(),
+    depAirport: (raw.depAirport || value("depAirport")).toUpperCase(),
+    arrAirport: (raw.arrAirport || value("arrAirport")).toUpperCase(),
+    depDate: normalizeDate(raw.depDate || value("depDate")),
+    flightNumber: (raw.flightNumber || value("flightNumber")).toUpperCase(),
     cabin: (raw.cabin || value("cabin")).toUpperCase(),
     bookingConfig: {
       bookRate: positiveNumber(raw.bookRate) || numberOrDefault("bookRate"),
-      currencyCode: (raw.currencyCode || valueOrDefault("currencyCode") || "MYR").toUpperCase(),
+      currencyCode: (raw.currencyCode || value("currencyCode")).toUpperCase(),
     },
     ext: {
       usePassport: parseBoolean(raw.usePassport, $("usePassport").checked),
@@ -485,11 +525,14 @@ function validateTableImportPayload(payload, raw) {
   if (!taskData.arrAirport) errors.push("缺少目的地");
   if (!/^\d{8}$/.test(taskData.depDate || "")) errors.push("日期格式错误");
   if (!taskData.flightNumber) errors.push("缺少航班号");
+  if (!taskData.cabin) errors.push("缺少舱位");
   if (!payload.intervalSeconds || payload.intervalSeconds <= 0) errors.push("查询延迟无效");
   if (!taskData.bookingConfig?.bookRate || taskData.bookingConfig.bookRate <= 0) errors.push("预计延迟无效");
   if (!taskData.bookingConfig?.currencyCode) errors.push("缺少币种");
   if (!payload.passengerRange) errors.push("缺少人数");
-  if (raw.pnrValidMinutes && !positiveNumber(raw.pnrValidMinutes)) errors.push("PNR有效期无效");
+  const pnrValidText = String(raw.pnrValidMinutes || value("pnrValidMinutes") || "").trim();
+  if (!pnrValidText) errors.push("缺少PNR有效期");
+  else if (!positiveNumber(pnrValidText)) errors.push("PNR有效期无效");
   return errors;
 }
 
@@ -1452,7 +1495,7 @@ function copyTaskToForm(task) {
   $("bookRate").value = booking.bookRate || "";
   $("passengerRange").value = task.passenger_range || (task.passenger_count ? `${task.passenger_count}-${task.passenger_count}` : "");
   $("pnrValidMinutes").value = data.ext?.pnrValidMinutes || "";
-  $("currencyCode").value = booking.currencyCode || "MYR";
+  $("currencyCode").value = booking.currencyCode || "";
   $("callUrl").value = data.callbackData?.callUrl || "";
   $("callData").value = data.callbackData?.callData || "";
   $("usePassport").checked = inferPassport(data);
@@ -1461,6 +1504,11 @@ function copyTaskToForm(task) {
 
 async function submitTask(event) {
   event.preventDefault();
+  const errors = validateTaskForm();
+  if (errors.length) {
+    toast(errors.length > 1 ? `请检查：${errors.join("，")}` : errors[0]);
+    return;
+  }
   const payload = buildPayloadFromForm();
   await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
   toast("任务已添加");
@@ -1470,9 +1518,9 @@ async function submitTask(event) {
 
 function resetFormDefaults() {
   $("taskForm").reset();
-  if (state.sources.includes("5JWEB")) $("source").value = "5JWEB";
-  $("currencyCode").value = "MYR";
+  $("source").value = "";
   $("usePassport").checked = true;
+  REQUIRED_TASK_FIELDS.forEach((field) => clearTaskFieldInvalid(field.id));
 }
 
 function formatDepDate(value) {
@@ -1656,6 +1704,10 @@ function bindEvents() {
     if (!els.logSection.classList.contains("hidden")) clearSelectedTask();
   });
   els.taskForm.addEventListener("submit", (event) => submitTask(event).catch(showError));
+  REQUIRED_TASK_FIELDS.forEach((field) => {
+    const element = $(field.id);
+    if (element) element.addEventListener(element.tagName === "SELECT" ? "change" : "input", () => clearTaskFieldInvalid(field.id));
+  });
   els.tableImportTemplateBtn.addEventListener("click", () => downloadTableImportTemplate().catch(showError));
   els.tableImportParseBtn.addEventListener("click", () => parseTableImport(true).catch(showError));
   els.tableImportSubmitBtn.addEventListener("click", () => submitTableImport().catch(showError));

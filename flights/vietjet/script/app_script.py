@@ -1,4 +1,6 @@
 import copy
+import json
+import uuid
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -19,7 +21,7 @@ class AppScript:
         self.initialize_session()
 
     def initialize_session(self):
-        self.__http_utils.initialize(proxy_info_data=self.__current_proxy(), impersonate="safari155")
+        self.__http_utils.initialize(proxy_info_data=self.__current_proxy())
 
     def __current_proxy(self):
         if not self.__proxy_candidates:
@@ -81,7 +83,9 @@ class AppScript:
                 "Accept-Encoding": "gzip, deflate, br",
                 "Content-Type": "application/json",
                 "x-app-timezone": "+08:00",
-                "uuid": "AppCenter ",
+                'uuid': f"AppCenter {str(uuid.uuid4()).upper()}",
+
+                'x-app-uuid': f"vjadevice_{uuid.uuid4()}",
                 "priority": "u=3, i",
                 "accept-language": "vi-VN",
                 "x-app-build": "500098",
@@ -109,17 +113,19 @@ class AppScript:
         response = self.__http_utils.put(
             url="https://mobileapp-api.vietjetair.com/api/reserve/quotationsV2",
             headers={
-                "User-Agent": "Vietjet Air/7 CFNetwork/3860.400.51 Darwin/25.3.0",
-                "Connection": "keep-alive",
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Content-Type": "application/json",
-                "x-app-timezone": "+08:00",
-                "uuid": "AppCenter ",
-                "priority": "u=3, i",
-                "accept-language": "vi-VN",
-                "x-app-build": "500098",
-                "x-app-version": "5.9.0",
+                'User-Agent': "Vietjet%20Air/17 CFNetwork/3860.600.12 Darwin/25.5.0",
+                'Accept': "application/json",
+                'Content-Type': "application/json",
+                'x-app-timezone': "+08:00",
+                'uuid': f"AppCenter {str(uuid.uuid4()).upper()}",
+                'x-platform': "ios",
+                'content-language': "en-US",
+                'priority': "u=3, i",
+                'accept-language': "en-US",
+                'x-app-uuid': f"vjadevice_{uuid.uuid4()}",
+                'lang': "en-US",
+                'x-app-build': "17",
+                'x-app-version': "5.9.1",
             },
             data=data,
             timeout=self.__timeout,
@@ -150,13 +156,16 @@ class AppScript:
                 "Accept-Encoding": "gzip, deflate, br",
                 "Content-Type": "application/json",
                 "x-app-timezone": "+08:00",
-                "uuid": "AppCenter ",
+                'uuid': f"AppCenter {str(uuid.uuid4()).upper()}",
+
+                'x-app-uuid': f"vjadevice_{uuid.uuid4()}",
                 "priority": "u=3, i",
                 "accept-language": "vi-VN",
                 "x-app-build": "500098",
                 "x-app-version": "5.9.0",
                 "auth-user": "",
                 "Authorization": "Bearer ",
+
             },
             data=data,
             timeout=self.__timeout,
@@ -181,19 +190,21 @@ class AppScript:
         response = self.__http_utils.post(
             url="https://mobileapp-api.vietjetair.com/api/travelOption",
             headers={
-                "User-Agent": "Vietjet Air/7 CFNetwork/3860.400.51 Darwin/25.3.0",
-                "Connection": "keep-alive",
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Content-Type": "application/json",
-                "x-app-timezone": "+08:00",
-                "uuid": "AppCenter ",
-                "priority": "u=3, i",
-                "accept-language": "vi-VN",
-                "x-app-build": "500098",
-                "x-app-version": "5.9.0",
-            },
-            data=data,
+    "User-Agent": "Vietjet%20Air/17 CFNetwork/3860.600.12 Darwin/25.5.0",
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "x-app-timezone": "+08:00",
+    "uuid": "AppCenter 7F530332-216E-45ED-9368-1F7F0E0B4E6C",
+    "x-platform": "ios",
+    "content-language": "en-US",
+    "priority": "u=3, i",
+    "accept-language": "en-US",
+    "x-app-uuid": "vjadevice_8febd33a-06c3-48e7-9c0a-88af2fc213f8",
+    "lang": "en-US",
+    "x-app-build": "17",
+    "x-app-version": "5.9.1"
+},
+            data=json.dumps(data),
             timeout=self.__timeout,
         )
         if response.status not in [200, 400]:

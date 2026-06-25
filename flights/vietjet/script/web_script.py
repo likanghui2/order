@@ -681,7 +681,7 @@ class WebScript:
     @retry_decorator(
         [(ServiceStateEnum.CURL_EXCEPTION, None),
          (ServiceStateEnum.HTTP_TIMEOUT, None),
-         (ServiceStateEnum.ROBOT_CHECK, None)])
+         (ServiceStateEnum.ROBOT_CHECK, None)], retry_max_number=20)
     def reservations(self, data, authorization, request_id=None, session_id=None):
         headers = {
             'accept': 'application/json',
@@ -701,7 +701,7 @@ class WebScript:
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
             'user-agent': self.__ua,
-            "Authorization": f"Bearer {authorization}" if authorization else "",
+            # "Authorization": f"Bearer {authorization}" if authorization else "",
             # "X-Aws-Waf-Token": self.__aws_token,
         }
         headers.update(self.zero_trust_headers('/booking/api/v1/reservations'))
@@ -729,7 +729,8 @@ class WebScript:
                     retry_after = int(float(retry_after))
                 except (TypeError, ValueError):
                     retry_after = 15
-                wait_seconds = retry_after + random.uniform(2, 6)
+                wait_seconds = retry_after + random.uniform(1, 3)
+                wait_seconds = random.uniform(1, 3)
                 self.__log.info(f"reservations触发限速，等待[{wait_seconds:.1f}]秒后重试")
                 time.sleep(wait_seconds)
                 raise ServiceError(ServiceStateEnum.ROBOT_CHECK)

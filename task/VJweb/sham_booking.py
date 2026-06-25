@@ -146,11 +146,11 @@ if __name__ == '__main__':
                 "taskType": "shamBooking",
                 "source": "VJWEB",
                 "taskData": {
-                    "depAirport": "SGN",
-                    "arrAirport": "CAN",
-                    "depDate": "20260830",
-                    "flightNumber": "VJ3908",
-                    "cabin": "U",
+                    "depAirport": "PVG",
+                    "arrAirport": "SGN",
+                    "depDate": "20260625",
+                    "flightNumber": "VJ3901",
+                    "cabin": "",
                     "bookingConfig": {
                         "bookRate": 10,
                         "currencyCode": "VND"

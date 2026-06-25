@@ -45,9 +45,9 @@ def main(
         port=6969,
         username='BHF6UsNS',
         password='X8ABIdpI',
-        region='th,my,sg,id',
+        region='US',
         session_time=10,
-        format='http://BHF6UsNS-country-US:X8ABIdpI@{host}:{port}',
+        format='http://BHF6UsNS-country-{region}:X8ABIdpI@{host}:{port}',
     ))
     service.initialize_session()
 
@@ -130,9 +130,9 @@ if __name__ == "__main__":
             "taskData": {
                 "depAirport": "PVG",
                 "arrAirport": "CGK",
-                "depDate": "2026-06-23",
+                "depDate": "2026-07-23",
                 "flightNumber": "GA895",
-                "cabin": "T",
+                "cabin": "N",
                 "bookingConfig": {
                     "bookRate": 10,
                     "currencyCode": "IDR",

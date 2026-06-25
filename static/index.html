@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>智能航空压位任务管理系统</title>
-    <link rel="stylesheet" href="/static/styles.css?v=26" />
+    <link rel="stylesheet" href="/static/styles.css?v=27" />
   </head>
   <body>
     <div class="tool-window">
@@ -110,49 +110,49 @@
             </div>
           </div>
           <form id="taskForm" class="inline-form" novalidate>
-            <label>
+            <label class="required-field">
               <span>Source:</span>
               <select id="source" required></select>
             </label>
-            <label>
+            <label class="required-field">
               <span>出发地:</span>
-              <input id="depAirport" data-default="SZX" placeholder="SZX" />
+              <input id="depAirport" required />
             </label>
-            <label>
+            <label class="required-field">
               <span>目的地:</span>
-              <input id="arrAirport" data-default="KUL" placeholder="KUL" />
+              <input id="arrAirport" required />
             </label>
-            <label>
+            <label class="required-field">
               <span>日期:</span>
-              <input id="depDate" data-default="2026-06-03" placeholder="2026-06-03" />
+              <input id="depDate" required />
             </label>
-            <label>
+            <label class="required-field">
               <span>航班号:</span>
-              <input id="flightNumber" data-default="AK127" placeholder="AK127" />
+              <input id="flightNumber" required />
             </label>
-            <label>
+            <label class="required-field">
               <span>舱位:</span>
-              <input id="cabin" data-default="L" placeholder="L" />
+              <input id="cabin" required />
             </label>
             <label>
               <span>查询延迟:</span>
-              <input id="intervalSeconds" data-default="30" type="number" min="1" placeholder="30" />
+              <input id="intervalSeconds" data-default="30" type="number" min="1" />
             </label>
             <label>
               <span>预计延迟:</span>
-              <input id="bookRate" data-default="10" type="number" min="1" placeholder="10" />
+              <input id="bookRate" data-default="10" type="number" min="1" />
             </label>
-            <label>
+            <label class="required-field">
               <span>币种:</span>
-              <input id="currencyCode" data-default="MYR" placeholder="MYR" />
+              <input id="currencyCode" required />
             </label>
             <label>
               <span>人数:</span>
-              <input id="passengerRange" data-default="1-1" placeholder="1-1" />
+              <input id="passengerRange" data-default="1-1" />
             </label>
-            <label>
+            <label class="required-field">
               <span>PNR有效期:</span>
-              <input id="pnrValidMinutes" type="number" min="1" placeholder="分钟" />
+              <input id="pnrValidMinutes" type="number" min="1" required />
             </label>
             <label class="checkbox-label">
               <input id="usePassport" type="checkbox" checked />
@@ -510,6 +510,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/app.js?v=38"></script>
+    <script src="/static/app.js?v=39"></script>
   </body>
 </html>
