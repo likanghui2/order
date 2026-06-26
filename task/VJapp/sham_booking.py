@@ -5,7 +5,6 @@ from decimal import Decimal
 from typing import List, Optional
 from common.decorators.task_decorator import task_decorator
 from common.enums.order_state_enum import OrderStateEnum
-from common.enums.task_type_enum import TaskTypeEnum
 from common.errors.service_error import ServiceError, ServiceStateEnum
 from common.global_variable import GlobalVariable
 from common.model.flight.flight_bundle_model import FlightBundleModel
@@ -17,7 +16,6 @@ from common.utils import celery_util, log_util, machine_cache_util
 from common.utils.flight_util import FlightUtil
 from common.utils.redis_util import RedisUtil
 from common.utils.sham_booking_util import ShamBookingUtil
-from flights.vietjet.flight_common.app_payment_method_enum import VjAppPaymentMethodEnum
 from flights.vietjet.service.app_service import AppService
 
 CACHE = machine_cache_util.MachineCache()
@@ -368,27 +366,29 @@ def main(self,
 
 def _build_demo_task_data():
     return {
-        "taskId": "vj-app-sham-booking-demo",
-        "taskType": TaskTypeEnum.SHAM_BOOKING.value,
+        "taskId": "VJAPP-SGN-PVG-VJ3900-20260726-78497-P1",
         "source": "VJAPP",
+        "taskType": "shamBooking",
         "taskData": {
             "depAirport": "SGN",
-            "arrAirport": "CAN",
-            "depDate": "20260729",
-            "flightNumber": "VJ3908",
-            "cabin": "W",
+            "arrAirport": "PVG",
+            "depDate": "20260726",
+            "flightNumber": "VJ3900",
+            "cabin": "J",
             "bookingConfig": {
-                "bookRate": 10,
-                "currencyCode": 'VND',
+                "bookRate": 2,
+                "currencyCode": "VND"
             },
-            'ext': {
-                "passengerCount": 2,
+            "ext": {
+                "usePassport": True,
+                "pnrValidMinutes": 30,
+                "passengerCount": 1
             },
             "callbackData": {
                 "callData": "",
-                "callUrl": "",
-            },
-        },
+                "callUrl": ""
+            }
+        }
     }
 
 

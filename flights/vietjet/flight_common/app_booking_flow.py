@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -83,7 +84,7 @@ class AppBookingFlow:
         seat_selections: Optional[Iterable[Any]] = None,
         ancillary_purchases: Optional[Iterable[Any]] = None,
         insurance_policies: Optional[List[JsonDict]] = None,
-        type_payment: str = "pay_later",
+        type_payment: str = "",
         extra: Optional[JsonDict] = None,
         route_type: Optional[Any] = None,
     ) -> JsonDict:
@@ -140,9 +141,9 @@ class AppBookingFlow:
     def booking_information(cls, contact_info: ContactInfoModel) -> JsonDict:
         return {
             "contactInformation": {
-                "name": f"{contact_info.last_name} {contact_info.first_name}".strip().upper(),
+                "name": (contact_info.first_name or contact_info.last_name or "").strip().upper(),
                 "phoneNumber": cls.phone_number(contact_info),
-                "extension": contact_info.phone_code or "",
+                "extension": "",
                 "email": contact_info.email_address,
             },
             "hold": None,
@@ -179,51 +180,95 @@ class AppBookingFlow:
     ) -> JsonDict:
         document = passenger.document_info
         nationality = cls.country(document.nationality if document else None)
-        issuing_country = cls.country(document.issuing_country if document else None)
+        phone_country_code = cls.phone_country_code(contact_info)
+        passenger_country_code = cls.country_iso2(document.nationality if document else None)
         gender = cls.gender(passenger.gender)
+        title = cls.title(passenger.type, passenger.gender)
+        profile_key = cls.passenger_profile_key(passenger.type)
+        first_name = (passenger.first_name or "").upper()
+        last_name = (passenger.last_name or "").upper()
+        document_number = document.number if document and document.number else ""
+        document_type = document.type.name if document and document.type else ("PASSPORT" if document_number else "")
 
         passport = None
-        if document and document.number:
+        if document_number:
             passport = {
-                "number": document.number,
+                "number": document_number,
                 "expiryDate": document.expire_date or "",
-                "issuingCountry": issuing_country,
+                "issuingCountry": None,
                 "issuingCity": "",
                 "issuingDate": None,
             }
 
         reservation_profile = {
-            "firstName": (passenger.first_name or "").upper(),
-            "lastName": (passenger.last_name or "").upper(),
+            "firstName": first_name,
+            "lastName": last_name,
+            "name": first_name,
+            "surName": last_name,
             "memberId": "",
             "middleName": "",
             "birthDate": passenger.birthday or "",
-            "postalCode": None,
+            "birthday": cls.birthday(passenger.birthday),
             "address": {
                 "address1": "",
                 "location": {
                     "country": nationality,
-                    "province": None,
                 },
             },
-            "nationCountry": nationality,
-            "personalContactInformation": cls.contact_channels(contact_info),
             "businessContactInformation": cls.contact_channels(contact_info),
+            "codeMember": "",
+            "country": nationality,
+            "countryCode": "",
             "destinationContactInformation": None,
+            "documentNumber": document_number,
+            "documentType": document_type,
+            "email": contact_info.email_address,
+            "followAdult": -1,
+            "gender": gender,
+            "inValids": {
+                "address": False,
+                "birthday": False,
+                "country": False,
+                "documentNumber": False,
+                "email": False,
+                "name": False,
+                "phoneCode1": False,
+                "phoneCode2": False,
+                "phoneNumber1": False,
+                "skyclubMember": False,
+                "surName": False,
+                "tooltipLastName": False,
+                "tooltipPhone": False,
+            },
+            "indexScroll": 0,
+            "isReceiveNotify": False,
+            "key": profile_key,
+            "keyFollow": 0,
             "loyaltyProgram": {"number": None},
+            "mapInfo": False,
+            "nameIcon": cls.passenger_name_icon(passenger.type),
+            "passengers": [],
             "preBoard": False,
+            "personalContactInformation": cls.contact_channels(contact_info),
+            "phoneCode1": phone_country_code,
+            "phoneCode2": passenger_country_code,
+            "phoneNumber1": cls.phone_number(contact_info),
+            "phoneNumber2": "",
             "status": {"active": True, "inactive": False, "denied": False},
             "reference1": "",
             "reference2": "",
-            "gender": gender,
-            "title": cls.title(passenger.type, passenger.gender),
+            "skyclubMember": "",
+            "title": title,
+            "titleTranslate": title,
+            "tooltipLastName": last_name,
+            "tooltipPhone": last_name,
+            "uuid": f"{profile_key}_{index - 1}",
             "notes": "booking by app",
             "passport": passport,
         }
 
         return {
             "reservationProfile": reservation_profile,
-            "advancePassengerInformation": cls.advance_passenger_information(reservation_profile, passport),
             "passengerTypeCode": {"code": cls.passenger_type_code(passenger.type)},
             "index": index,
             "reservationStatus": dict(cls.RESERVATION_STATUS),
@@ -385,24 +430,71 @@ class AppBookingFlow:
         phone = AppBookingFlow.phone_number(contact_info)
         return {
             "mobileNumber": phone,
-            "phoneNumber": phone,
+            "phoneNumber": "",
             "email": contact_info.email_address,
         }
 
     @staticmethod
     def phone_number(contact_info: ContactInfoModel) -> str:
-        phone = contact_info.phone_number or ""
+        phone = (contact_info.phone_number or "").replace(" ", "")
+        if phone.startswith("+"):
+            return phone
         if phone.startswith("0"):
             phone = phone[1:]
-        return phone
+        phone_code = (contact_info.phone_code or "").replace("+", "")
+        return f"+{phone_code}{phone}" if phone_code else phone
 
-    @staticmethod
-    def country(code: Optional[str]) -> Optional[JsonDict]:
+    @classmethod
+    def country(cls, code: Optional[str]) -> Optional[JsonDict]:
         if not code:
             return None
+        code = code.upper()
+        country_code = Config.NATION_DICT.get(code, code)
         return {
-            "code": Config.NATION_DICT.get(code, code),
+            "code": country_code,
+            "href": f"https://vietjet-api.intelisys.ca/RESTv1/countries/{country_code}",
+            "name": cls.country_name(country_code),
         }
+
+    @staticmethod
+    def country_name(country_code: Optional[str]) -> Optional[str]:
+        if not country_code:
+            return None
+        for country_info in Config.Country_Code_Dict.values():
+            if country_info.get("isoCode1") == country_code:
+                return country_info.get("country")
+        return None
+
+    @staticmethod
+    def country_iso2(code: Optional[str]) -> str:
+        if not code:
+            return ""
+        code = code.upper()
+        if len(code) == 2:
+            return code.lower()
+        for country_info in Config.Country_Code_Dict.values():
+            if country_info.get("isoCode1") == code:
+                return (country_info.get("isoCode") or "").lower()
+        return ""
+
+    @staticmethod
+    def phone_country_code(contact_info: ContactInfoModel) -> str:
+        phone_code = (contact_info.phone_code or "").replace("+", "")
+        country_info = Config.Country_Code_Dict.get(phone_code)
+        if not country_info:
+            return ""
+        return (country_info.get("isoCode") or "").lower()
+
+    @staticmethod
+    def birthday(date_value: Optional[str]) -> str:
+        if not date_value:
+            return ""
+        for date_format in ("%Y-%m-%d", "%m-%d-%Y", "%Y%m%d"):
+            try:
+                return datetime.strptime(date_value[:10], date_format).strftime("%d/%m/%Y")
+            except ValueError:
+                continue
+        return date_value
 
     @staticmethod
     def gender(gender: GenderEnum) -> str:
@@ -415,6 +507,22 @@ class AppBookingFlow:
         if passenger_type == PassengerTypeEnum.CHD:
             return "Master" if gender == GenderEnum.M else "Miss"
         return "Mr" if gender == GenderEnum.M else "Ms"
+
+    @staticmethod
+    def passenger_profile_key(passenger_type: PassengerTypeEnum) -> str:
+        if passenger_type == PassengerTypeEnum.CHD:
+            return "child"
+        if passenger_type == PassengerTypeEnum.INF:
+            return "infant"
+        return "adult"
+
+    @staticmethod
+    def passenger_name_icon(passenger_type: PassengerTypeEnum) -> str:
+        if passenger_type == PassengerTypeEnum.CHD:
+            return "children"
+        if passenger_type == PassengerTypeEnum.INF:
+            return "infants"
+        return "adults"
 
     @staticmethod
     def passenger_type_code(passenger_type: PassengerTypeEnum) -> str:

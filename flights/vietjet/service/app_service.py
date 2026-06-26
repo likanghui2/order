@@ -1,5 +1,9 @@
 import base64
 import json
+import random
+import string
+import time
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional, List
 from urllib.parse import urlencode
@@ -65,7 +69,7 @@ class AppService:
                               payment_currency: Optional[dict] = None,
                               processing_currency_amounts: Optional[list] = None,
                               return_bundle: Optional[FlightBundleModel] = None,
-                              type_payment: str = "pay_later",
+                              type_payment: str = "",
                               extra: Optional[dict] = None):
         return AppBookingFlow.build_reserve_payload(
             journey=journey,
@@ -89,19 +93,21 @@ class AppService:
             "method": "POST",
             "url": "https://mobileapp-api.vietjetair.com/api/reserveV2",
             "headers": {
-                "User-Agent": "Vietjet Air/7 CFNetwork/3860.400.51 Darwin/25.3.0",
-                "Connection": "keep-alive",
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Encoding": "gzip, deflate, br",
+                "User-Agent": "Vietjet%20Air/17 CFNetwork/3860.600.12 Darwin/25.5.0",
+                "Accept": "application/json",
                 "Content-Type": "application/json",
+                "x-app-uuid": "vjadevice_1008fdf6-a03f-471e-b065-143277974b25",
+                "lang": "en-US",
                 "x-app-timezone": "+08:00",
-                "uuid": "AppCenter ",
+                "uuid": "AppCenter 15E97800-B16D-4963-A7E8-9BBBC36F91A8",
                 "priority": "u=3, i",
-                "accept-language": "vi-VN",
-                "x-app-build": "500098",
-                "x-app-version": "5.9.0",
+                "x-app-version": "5.9.1",
+                "x-platform": "ios",
                 "auth-user": "",
-                "Authorization": "Bearer ",
+                "authorization": "Bearer",
+                "accept-language": "en-US",
+                "x-app-build": "17",
+                "content-language": "en-US",
             },
             "body": {
                 "encryptData": self.encrypt_payload(reserve_payload),
@@ -136,19 +142,19 @@ class AppService:
             "method": "PUT",
             "url": "https://mobileapp-api.vietjetair.com/api/reserve/quotationsV2",
             "headers": {
-                "User-Agent": "Vietjet Air/7 CFNetwork/3860.400.51 Darwin/25.3.0",
-                "Connection": "keep-alive",
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Encoding": "gzip, deflate, br",
+                "User-Agent": "Vietjet%20Air/17 CFNetwork/3860.600.12 Darwin/25.5.0",
+                "Accept": "application/json",
                 "Content-Type": "application/json",
                 "x-app-timezone": "+08:00",
-                "uuid": "AppCenter ",
+                "uuid": f"AppCenter {str(uuid.uuid4()).upper()}",
+                "x-platform": "ios",
+                "content-language": "en-US",
                 "priority": "u=3, i",
-                "accept-language": "vi-VN",
-                "x-app-build": "500098",
-                "x-app-version": "5.9.0",
-                "auth-user": "",
-                "Authorization": "Bearer ",
+                "accept-language": "en-US",
+                "x-app-uuid": f"vjadevice_{uuid.uuid4()}",
+                "lang": "en-US",
+                "x-app-build": "17",
+                "x-app-version": "5.9.1",
             },
             "body": reserve_payload,
             "dryRun": True,
@@ -174,9 +180,12 @@ class AppService:
         payment_method_enum = VjAppPaymentMethodEnum.VNPAY_QR
         payment_method = {
             "identifier": payment_method_enum.identifier,
-            "description": "VNPAY QR",
+            "description": "VJ VNPay QR",
+            "threadPayment": "PaymentController",
+            "cardType": None,
+            "bank": None,
         }
-        selected_type_payment = payment_method_enum.type_payment
+        selected_type_payment = ""
         client_ip = self.client_ip()
         payment_method_criteria = self.build_payment_method_criteria({}, client_ip)
         base_total_amount = self.calculate_total_amount(use_bundle, passenger_infos)
@@ -294,16 +303,17 @@ class AppService:
             "CancelURL": "https://www.vietjetair.com/?status_payment=cancel",
             "FailURL": "https://www.vietjetair.com/?status_payment=fail",
             "PendingURL": "https://www.vietjetair.com/?status_payment=pending",
-            "identityNumber": None,
             "phoneInput": "",
-            "languageCode": "vi",
+            "languageCode": "en",
             "OneWay": 1,
             "isCheckin": False,
             "userId": "",
             "SendMail": True,
             "SendZalo": False,
             "SendFacebook": False,
-            "isPassportConfig": True,
+            "identityNumber": "",
+            "isPassportConfig": False,
+            "requestId": cls.request_id(),
         }
 
     @classmethod
@@ -332,7 +342,12 @@ class AppService:
 
     @classmethod
     def third_party_language(cls):
-        return cls.THIRD_PARTY_LANGUAGE["vi"]
+        return cls.THIRD_PARTY_LANGUAGE["en"]
+
+    @staticmethod
+    def request_id():
+        prefix = "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
+        return f"{prefix}-{int(time.time() * 1000)}"
 
     @staticmethod
     def route_type(journey: FlightJourneyModel):
