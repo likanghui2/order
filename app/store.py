@@ -10,6 +10,10 @@ from typing import Any, Optional
 ACTIVE = "ACTIVE"
 PAUSED = "PAUSED"
 STOPPED = "STOPPED"
+DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT = 20
+SETTING_PRECHECK_RESOURCE_MISS_LIMIT = "precheck_resource_miss_limit"
+PRECHECK_RESOURCE_MISS_REASONS = {"flightNotFound", "cabinNotFound"}
+PRECHECK_IGNORED_MISS_REASONS = {"searchFailed"}
 
 
 class TaskStore:
@@ -119,6 +123,15 @@ class TaskStore:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+                """
+            )
         self.backfill_pnr_records_from_candidates()
 
     def _ensure_task_columns(self, conn: sqlite3.Connection) -> None:
@@ -148,9 +161,12 @@ class TaskStore:
         task_id = payload.get("task_id") or payload.get("taskId") or uuid.uuid4().hex
         task_data = payload["task_data"]
         interval_seconds = int(payload.get("interval_seconds") or _book_rate(task_data) or 30)
-        next_run_at = None if payload.get("is_parent") else (
-            _parse_run_at(payload.get("first_run_at")) if payload.get("first_run_at") else now
-        )
+        if payload.get("is_parent"):
+            next_run_at = None
+        elif "next_run_at" in payload:
+            next_run_at = payload.get("next_run_at")
+        else:
+            next_run_at = _parse_run_at(payload.get("first_run_at")) if payload.get("first_run_at") else now
         with self._lock, self._connect() as conn:
             conn.execute(
                 """
@@ -410,14 +426,13 @@ class TaskStore:
         duration_seconds: float,
     ) -> None:
         now = time.time()
-        raw_result = json.dumps(result, ensure_ascii=False, default=str)
         success = status_code == 200
         pnr_record = None
         with self._lock, self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT status, source, task_data, interval_seconds, max_runs, run_count,
-                    success_count, failure_count, passenger_count
+                SELECT status, source, task_type, task_data, parent_task_id, child_index,
+                    interval_seconds, max_runs, run_count, success_count, failure_count, passenger_count
                 FROM tasks
                 WHERE task_id = ?
                 """,
@@ -426,6 +441,8 @@ class TaskStore:
             if not row:
                 return
             task_status = row["status"]
+            task_data = self._decode_json(row["task_data"]) or {}
+            is_search_precheck = _is_search_precheck(row)
             run_count = int(row["run_count"])
             max_runs = row["max_runs"]
             final_status = task_status
@@ -437,6 +454,62 @@ class TaskStore:
                     finished_at = now
                 else:
                     next_run_at = now + int(row["interval_seconds"])
+            display_message = message
+            display_result = result
+            if is_search_precheck:
+                precheck_result = _search_precheck_result(result, task_data)
+                miss_limit = self._precheck_resource_miss_limit(conn)
+                released_count = 0
+                blocked_count = 0
+                consecutive_miss_count = 0
+                children_blocked = False
+                if task_status == ACTIVE and precheck_result["matched"]:
+                    released_count = self._release_prechecked_children(conn, row["parent_task_id"], now)
+                elif task_status == ACTIVE and _is_precheck_resource_miss(precheck_result):
+                    consecutive_miss_count = (
+                        self._consecutive_precheck_resource_misses(
+                            conn,
+                            task_id,
+                            miss_limit - 1,
+                        )
+                        + 1
+                    )
+                    children_blocked = consecutive_miss_count >= miss_limit
+                    if children_blocked:
+                        blocked_count = self._hold_prechecked_children(
+                            conn,
+                            row["parent_task_id"],
+                            now,
+                            _precheck_hold_message(precheck_result, miss_limit),
+                        )
+                elif task_status == ACTIVE and _is_ignored_precheck_miss_sample(precheck_result):
+                    consecutive_miss_count = self._consecutive_precheck_resource_misses(
+                        conn,
+                        task_id,
+                        miss_limit,
+                    )
+                    children_blocked = self._parent_precheck_blocks_children(conn, row["parent_task_id"])
+                display_message = _precheck_display_message(
+                    precheck_result,
+                    released_count,
+                    consecutive_miss_count,
+                    children_blocked,
+                    miss_limit,
+                )
+                display_result = _with_local_result_meta(
+                    result,
+                    {
+                        "precheck": {
+                            **precheck_result,
+                            "missLimit": miss_limit,
+                            "consecutiveMissCount": consecutive_miss_count,
+                            "releasedCount": released_count,
+                            "blockedCount": blocked_count,
+                            "childrenBlocked": children_blocked,
+                        }
+                    },
+                )
+            raw_result = json.dumps(display_result, ensure_ascii=False, default=str)
             conn.execute(
                 """
                 UPDATE attempts
@@ -447,7 +520,7 @@ class TaskStore:
                 (
                     "SUCCESS" if success else "FAILED",
                     status_code,
-                    message,
+                    display_message,
                     raw_result,
                     now,
                     duration_seconds,
@@ -455,6 +528,12 @@ class TaskStore:
                     attempt_no,
                 ),
             )
+            if (
+                final_status == ACTIVE
+                and _is_precheck_controlled_child(row)
+                and self._parent_precheck_blocks_children(conn, row["parent_task_id"])
+            ):
+                next_run_at = None
             conn.execute(
                 """
                 UPDATE tasks
@@ -468,7 +547,7 @@ class TaskStore:
                     int(row["success_count"]) + (1 if success else 0),
                     int(row["failure_count"]) + (0 if success else 1),
                     status_code,
-                    message,
+                    display_message,
                     raw_result,
                     next_run_at,
                     now,
@@ -480,13 +559,44 @@ class TaskStore:
                 pnr_record = _pnr_record_from_task_result(
                     task_id=task_id,
                     source=row["source"],
-                    task_data=self._decode_json(row["task_data"]) or {},
+                    task_data=task_data,
                     result=result,
                     created_at=now,
                     passenger_count=row["passenger_count"],
                 )
         if pnr_record:
             self.upsert_pnr_record(pnr_record)
+
+    def _consecutive_precheck_resource_misses(
+        self,
+        conn: sqlite3.Connection,
+        task_id: str,
+        limit: int,
+    ) -> int:
+        if limit <= 0:
+            return 0
+        rows = conn.execute(
+            """
+            SELECT raw_result
+            FROM attempts
+            WHERE task_id = ? AND finished_at IS NOT NULL
+            ORDER BY attempt_no DESC, id DESC
+            """,
+            (task_id,),
+        ).fetchall()
+        count = 0
+        for row in rows:
+            result = self._decode_json(row["raw_result"])
+            precheck_meta = _precheck_meta_from_result(result)
+            if _is_precheck_resource_miss(precheck_meta):
+                count += 1
+                if count >= limit:
+                    break
+                continue
+            if _is_ignored_precheck_miss_sample(precheck_meta):
+                continue
+            break
+        return count
 
     def fail_attempt(self, task_id: str, attempt_no: int, message: str, duration_seconds: float) -> None:
         self.finish_attempt(task_id, attempt_no, 0, message, {"status": 0, "message": message}, duration_seconds)
@@ -510,8 +620,14 @@ class TaskStore:
             return None
         task_ids = self._cascade_task_ids(task_id)
         with self._lock, self._connect() as conn:
+            precheck_ids = set(self._precheck_task_ids(conn, task_id)) if task.get("is_parent") else set()
             for target_id in task_ids:
-                next_run_at = None if target_id == task_id and task.get("is_parent") else now
+                if target_id == task_id and task.get("is_parent"):
+                    next_run_at = None
+                elif precheck_ids:
+                    next_run_at = now if target_id in precheck_ids else None
+                else:
+                    next_run_at = now
                 conn.execute(
                     "UPDATE tasks SET status = ?, next_run_at = ?, updated_at = ?, finished_at = NULL WHERE task_id = ?",
                     (ACTIVE, next_run_at, now, target_id),
@@ -539,6 +655,44 @@ class TaskStore:
                 (time.time(), time.time(), cutoff, ACTIVE),
             )
         return cur.rowcount
+
+    def get_app_settings(self) -> dict[str, Any]:
+        with self._connect() as conn:
+            return {
+                SETTING_PRECHECK_RESOURCE_MISS_LIMIT: self._precheck_resource_miss_limit(conn),
+            }
+
+    def update_app_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = time.time()
+        with self._lock, self._connect() as conn:
+            if SETTING_PRECHECK_RESOURCE_MISS_LIMIT in payload:
+                value = _positive_int_or_default(
+                    payload.get(SETTING_PRECHECK_RESOURCE_MISS_LIMIT),
+                    DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT,
+                )
+                conn.execute(
+                    """
+                    INSERT INTO app_settings (key, value, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        value = excluded.value,
+                        updated_at = excluded.updated_at
+                    """,
+                    (SETTING_PRECHECK_RESOURCE_MISS_LIMIT, str(value), now),
+                )
+            return {
+                SETTING_PRECHECK_RESOURCE_MISS_LIMIT: self._precheck_resource_miss_limit(conn),
+            }
+
+    def _precheck_resource_miss_limit(self, conn: sqlite3.Connection) -> int:
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?",
+            (SETTING_PRECHECK_RESOURCE_MISS_LIMIT,),
+        ).fetchone()
+        return _positive_int_or_default(
+            row["value"] if row else None,
+            DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT,
+        )
 
     def list_source_proxy_configs(self, sources: list[str]) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -622,8 +776,14 @@ class TaskStore:
         task_ids = self._cascade_task_ids(task_id)
         task = self.get_task(task_id)
         with self._lock, self._connect() as conn:
+            precheck_ids = set(self._precheck_task_ids(conn, task_id)) if task and task.get("is_parent") and status == ACTIVE else set()
             for target_id in task_ids:
-                target_next_run_at = None if target_id == task_id and task and task.get("is_parent") else next_run_at
+                if target_id == task_id and task and task.get("is_parent"):
+                    target_next_run_at = None
+                elif precheck_ids:
+                    target_next_run_at = next_run_at if target_id in precheck_ids else None
+                else:
+                    target_next_run_at = next_run_at
                 conn.execute(
                     """
                     UPDATE tasks
@@ -645,6 +805,75 @@ class TaskStore:
                 (task_id,),
             ).fetchall()
         return [task_id] + [row["task_id"] for row in rows]
+
+    def _precheck_task_ids(self, conn: sqlite3.Connection, parent_task_id: str) -> list[str]:
+        rows = conn.execute(
+            """
+            SELECT task_id FROM tasks
+            WHERE parent_task_id = ? AND task_type = 'search'
+            ORDER BY child_index ASC, created_at ASC
+            """,
+            (parent_task_id,),
+        ).fetchall()
+        return [row["task_id"] for row in rows]
+
+    def _release_prechecked_children(
+        self,
+        conn: sqlite3.Connection,
+        parent_task_id: str,
+        now: float,
+    ) -> int:
+        cursor = conn.execute(
+            """
+            UPDATE tasks
+            SET next_run_at = ?, updated_at = ?
+            WHERE parent_task_id = ?
+                AND task_type = 'shamBooking'
+                AND status = ?
+                AND in_flight = 0
+                AND next_run_at IS NULL
+            """,
+            (now, now, parent_task_id, ACTIVE),
+        )
+        return cursor.rowcount
+
+    def _hold_prechecked_children(
+        self,
+        conn: sqlite3.Connection,
+        parent_task_id: str,
+        now: float,
+        message: str,
+    ) -> int:
+        cursor = conn.execute(
+            """
+            UPDATE tasks
+            SET next_run_at = NULL,
+                last_message = ?,
+                updated_at = ?
+            WHERE parent_task_id = ?
+                AND task_type = 'shamBooking'
+                AND status = ?
+            """,
+            (message, now, parent_task_id, ACTIVE),
+        )
+        return cursor.rowcount
+
+    def _parent_precheck_blocks_children(self, conn: sqlite3.Connection, parent_task_id: str) -> bool:
+        row = conn.execute(
+            """
+            SELECT last_result
+            FROM tasks
+            WHERE parent_task_id = ?
+                AND task_type = 'search'
+            ORDER BY child_index ASC, created_at ASC
+            LIMIT 1
+            """,
+            (parent_task_id,),
+        ).fetchone()
+        if not row:
+            return False
+        precheck_meta = _precheck_meta_from_result(self._decode_json(row["last_result"]))
+        return bool(precheck_meta.get("childrenBlocked")) and not bool(precheck_meta.get("matched"))
 
     @classmethod
     def _row_to_dict(cls, row: sqlite3.Row) -> dict[str, Any]:
@@ -753,6 +982,167 @@ class TaskStore:
             "updated_at": row["updated_at"],
             "configured": True,
         }
+
+
+def _is_search_precheck(row: sqlite3.Row) -> bool:
+    return (
+        row["task_type"] == "search"
+        and bool(row["parent_task_id"])
+        and int(row["child_index"] or 0) == 0
+    )
+
+
+def _is_precheck_controlled_child(row: sqlite3.Row) -> bool:
+    return (
+        row["task_type"] == "shamBooking"
+        and bool(row["parent_task_id"])
+        and int(row["child_index"] or 0) > 0
+    )
+
+
+def _search_precheck_result(result: Any, task_data: dict[str, Any]) -> dict[str, Any]:
+    result_data = _as_dict(result)
+    if _safe_int(result_data.get("status")) != 200:
+        return {
+            "matched": False,
+            "reason": "searchFailed",
+            "flightNumber": task_data.get("flightNumber") or "",
+            "cabin": task_data.get("cabin") or "",
+            "message": str(result_data.get("message") or "预检查询失败"),
+        }
+    target_flight_number = _normalize_match_text(task_data.get("flightNumber"))
+    target_cabin = _normalize_cabin_for_precheck(task_data.get("cabin"))
+    if not target_flight_number or not target_cabin:
+        return {
+            "matched": False,
+            "reason": "missingTarget",
+            "flightNumber": target_flight_number,
+            "cabin": target_cabin,
+            "message": "缺少目标航班号或舱位",
+        }
+
+    data = _as_dict(result_data.get("data"))
+    journeys = _as_list(data.get("journeys")) or _as_list(result_data.get("journeys"))
+    flight_found = False
+    for journey in journeys:
+        journey_data = _as_dict(journey)
+        if not _journey_has_flight_number(journey_data, target_flight_number):
+            continue
+        flight_found = True
+        if _journey_has_cabin(journey_data, target_cabin):
+            return {
+                "matched": True,
+                "reason": "matched",
+                "flightNumber": target_flight_number,
+                "cabin": target_cabin,
+                "message": "匹配成功",
+            }
+    if flight_found:
+        return {
+            "matched": False,
+            "reason": "cabinNotFound",
+            "flightNumber": target_flight_number,
+            "cabin": target_cabin,
+            "message": f"航班 {target_flight_number} 未找到舱位 {target_cabin}",
+        }
+    return {
+        "matched": False,
+        "reason": "flightNotFound",
+        "flightNumber": target_flight_number,
+        "cabin": target_cabin,
+        "message": f"未找到航班 {target_flight_number}",
+    }
+
+
+def _precheck_display_message(
+    precheck_result: dict[str, Any],
+    released_count: int,
+    consecutive_miss_count: int = 0,
+    children_blocked: bool = False,
+    miss_limit: int = DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT,
+) -> str:
+    if precheck_result.get("matched"):
+        return (
+            f"预检命中：航班 {precheck_result.get('flightNumber')} "
+            f"舱位 {precheck_result.get('cabin')}，已释放 {released_count} 个子任务"
+        )
+    message = precheck_result.get("message") or "未匹配目标航班和舱位"
+    if _is_precheck_resource_miss(precheck_result):
+        if children_blocked:
+            return f"预检连续{miss_limit}次未释放：{message}，子任务已等待预检"
+        return f"预检未释放：{message}（连续 {consecutive_miss_count}/{miss_limit}）"
+    if _is_ignored_precheck_miss_sample(precheck_result):
+        suffix = f"，当前连续 {consecutive_miss_count}/{miss_limit}" if consecutive_miss_count else ""
+        if children_blocked:
+            return f"预检查询失败：{message}，子任务保持等待预检{suffix}"
+        return f"预检查询失败：{message}（未计数{suffix}）"
+    return f"预检未释放：{message}"
+
+
+def _precheck_hold_message(
+    precheck_result: dict[str, Any],
+    miss_limit: int = DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT,
+) -> str:
+    message = precheck_result.get("message") or "未匹配目标航班和舱位"
+    return f"预检连续{miss_limit}次未释放：{message}，等待预检重新命中"
+
+
+def _with_local_result_meta(result: Any, meta: dict[str, Any]) -> dict[str, Any]:
+    result_data = dict(_as_dict(result))
+    local_meta = dict(_as_dict(result_data.get("localMeta")))
+    local_meta.update(meta)
+    result_data["localMeta"] = local_meta
+    return result_data
+
+
+def _is_precheck_resource_miss(precheck_result: dict[str, Any]) -> bool:
+    return str(precheck_result.get("reason") or "") in PRECHECK_RESOURCE_MISS_REASONS
+
+
+def _is_ignored_precheck_miss_sample(precheck_result: dict[str, Any]) -> bool:
+    return str(precheck_result.get("reason") or "") in PRECHECK_IGNORED_MISS_REASONS
+
+
+def _precheck_meta_from_result(result: Any) -> dict[str, Any]:
+    result_data = _as_dict(result)
+    local_meta = _as_dict(result_data.get("localMeta"))
+    return _as_dict(local_meta.get("precheck"))
+
+
+def _journey_has_flight_number(journey: dict[str, Any], target_flight_number: str) -> bool:
+    for segment in _as_list(journey.get("segments")):
+        segment_data = _as_dict(segment)
+        if _normalize_match_text(segment_data.get("flightNumber")) == target_flight_number:
+            return True
+    return False
+
+
+def _journey_has_cabin(journey: dict[str, Any], target_cabin: str) -> bool:
+    for bundle in _as_list(journey.get("bundles")):
+        bundle_data = _as_dict(bundle)
+        cabin = _normalize_cabin_for_precheck(bundle_data.get("cabin"))
+        if cabin == target_cabin:
+            return True
+        if target_cabin in _split_cabin_candidates(bundle_data.get("cabin")):
+            return True
+    return False
+
+
+def _normalize_match_text(value: Any) -> str:
+    return "".join(ch for ch in str(value or "").upper().strip() if not ch.isspace())
+
+
+def _normalize_cabin_for_precheck(value: Any) -> str:
+    return _normalize_match_text(value).replace("00", "")
+
+
+def _split_cabin_candidates(value: Any) -> set[str]:
+    text = str(value or "")
+    return {
+        _normalize_cabin_for_precheck(item)
+        for item in text.replace("^", ",").replace("|", ",").split(",")
+        if _normalize_cabin_for_precheck(item)
+    }
 
 
 def _book_rate(task_data: dict[str, Any]) -> Optional[int]:
@@ -926,6 +1316,11 @@ def _safe_int(value: Any) -> Optional[int]:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _positive_int_or_default(value: Any, default: int) -> int:
+    parsed = _safe_int(value)
+    return parsed if parsed and parsed > 0 else default
 
 
 def _safe_float(value: Any) -> Optional[float]:

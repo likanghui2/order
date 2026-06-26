@@ -12,6 +12,7 @@ const state = {
   proxyConfigs: [],
   selectedTaskId: "",
   sources: [],
+  settings: null,
   health: null,
   activeView: "tasks",
   expandedTaskIds: new Set(),
@@ -76,6 +77,8 @@ const els = {
   configPoll: document.getElementById("configPoll"),
   configTaskCount: document.getElementById("configTaskCount"),
   configSources: document.getElementById("configSources"),
+  precheckMissLimit: document.getElementById("precheckMissLimit"),
+  settingsSaveBtn: document.getElementById("settingsSaveBtn"),
   sourceProxyRows: document.getElementById("sourceProxyRows"),
   proxyRefreshBtn: document.getElementById("proxyRefreshBtn"),
   pnrRows: document.getElementById("pnrRows"),
@@ -260,6 +263,11 @@ async function loadHealth() {
   renderConfig();
 }
 
+async function loadSettings() {
+  state.settings = await api("/api/settings");
+  renderConfig();
+}
+
 async function loadTasks() {
   state.tasks = await api("/api/tasks");
   rememberExpandableTasks();
@@ -303,6 +311,9 @@ function renderConfig() {
   els.configRunner.textContent = runner ? `${runner.running}/${runnerLimitText(runner)}` : "-";
   els.configPoll.textContent = runner ? `${runner.pollInterval} 秒` : "-";
   els.configTaskCount.textContent = `${state.tasks.length} 个任务`;
+  if (els.precheckMissLimit && state.settings && document.activeElement !== els.precheckMissLimit) {
+    els.precheckMissLimit.value = state.settings.precheckResourceMissLimit || 20;
+  }
   els.configSources.innerHTML = state.sources.length
     ? state.sources.map((source) => `<span class="source-pill">${escapeHtml(source)}</span>`).join("")
     : "-";
@@ -354,6 +365,20 @@ function collectProxyRowPayload(row) {
 function numberFromElement(element) {
   const raw = element.value.trim();
   return raw ? Number(raw) : null;
+}
+
+async function saveSettings() {
+  const missLimit = numberFromElement(els.precheckMissLimit);
+  if (!Number.isInteger(missLimit) || missLimit < 1) {
+    toast("连续未释放次数必须是正整数");
+    return;
+  }
+  state.settings = await api("/api/settings", {
+    method: "PUT",
+    body: JSON.stringify({ precheckResourceMissLimit: missLimit }),
+  });
+  renderConfig();
+  toast("配置已保存");
 }
 
 async function handleProxyAction(action, source, row) {
@@ -802,26 +827,27 @@ function renderTaskRow(task, options = {}) {
   const bulkSelected = state.selectedTaskIds.has(task.task_id) ? " bulk-selected" : "";
   const isChild = Boolean(task.parent_task_id);
   const isParent = Boolean(task.is_parent);
+  const isPrecheck = isPrecheckTask(task);
   const childClass = isChild && options.childPosition ? ` child-${options.childPosition}` : "";
   const passport = inferPassport(taskData) ? "是" : "否";
-  const passengerText = isParent ? task.passenger_range || "-" : task.passenger_count || taskData.ext?.passengerCount || "-";
+  const passengerText = isParent ? task.passenger_range || "-" : isPrecheck ? "-" : task.passenger_count || taskData.ext?.passengerCount || "-";
   if (isChild) {
     return `
       <tr class="${selected} child-row${childClass}" data-task-id="${escapeHtml(task.task_id)}">
         <td class="select-cell"><span class="task-select-placeholder" aria-hidden="true"></span></td>
-        <td>
+        <td class="cell-tree">
           <div class="task-name">
             ${treeControl(task, 0)}
-            <span>子任务 ${escapeHtml(task.child_index || "")}</span>
+            <span>${isPrecheck ? "预检任务" : `子任务 ${escapeHtml(task.child_index || "")}`}</span>
           </div>
         </td>
-        <td class="task-id-cell">${renderTaskIdCell(task.task_id)}</td>
+        <td class="task-id-cell cell-task-id">${renderTaskIdCell(task.task_id)}</td>
         <td class="child-result-cell" colspan="8">${renderChildResult(task)}</td>
-        <td>${escapeHtml(passengerText)}</td>
-        <td>${escapeHtml(task.run_count || "-")}</td>
-        <td>${renderStatusBadge(task)}</td>
-        <td>${passport}</td>
-        <td>${renderTaskActions(task)}</td>
+        <td class="cell-people">${escapeHtml(passengerText)}</td>
+        <td class="cell-runs">${escapeHtml(task.run_count || "-")}</td>
+        <td class="cell-status">${renderStatusBadge(task)}</td>
+        <td class="cell-passport">${passport}</td>
+        <td class="cell-actions">${renderTaskActions(task)}</td>
       </tr>`;
   }
   return `
@@ -835,26 +861,26 @@ function renderTaskRow(task, options = {}) {
           ${bulkSelected ? "checked" : ""}
         />
       </td>
-      <td>
+      <td class="cell-tree">
         <div class="task-name">
           ${treeControl(task, options.childCount || 0)}
           <span>${isChild ? `子任务 ${task.child_index || ""}` : "主任务"}</span>
         </div>
       </td>
-      <td class="task-id-cell">${renderTaskIdCell(task.task_id)}</td>
-      <td>${escapeHtml(taskData.depAirport || "-")}</td>
-      <td>${escapeHtml(taskData.arrAirport || "-")}</td>
-      <td>${escapeHtml(formatDepDate(taskData.depDate))}</td>
-      <td>${escapeHtml(taskData.flightNumber || "-")}</td>
-      <td>${escapeHtml(taskData.cabin || "-")}</td>
-      <td>${escapeHtml(task.interval_seconds || "-")}</td>
-      <td>${escapeHtml(bookingConfig.bookRate || "-")}</td>
-      <td>${escapeHtml(bookingConfig.currencyCode || "-")}</td>
-      <td>${escapeHtml(passengerText)}</td>
-      <td>${escapeHtml(task.run_count || "-")}</td>
-      <td>${renderStatusBadge(task)}</td>
-      <td>${passport}</td>
-      <td>
+      <td class="task-id-cell cell-task-id">${renderTaskIdCell(task.task_id)}</td>
+      <td class="cell-dep">${escapeHtml(taskData.depAirport || "-")}</td>
+      <td class="cell-arr">${escapeHtml(taskData.arrAirport || "-")}</td>
+      <td class="cell-date">${escapeHtml(formatDepDate(taskData.depDate))}</td>
+      <td class="cell-flight">${escapeHtml(taskData.flightNumber || "-")}</td>
+      <td class="cell-cabin">${escapeHtml(taskData.cabin || "-")}</td>
+      <td class="cell-query-delay">${escapeHtml(task.interval_seconds || "-")}</td>
+      <td class="cell-book-delay">${escapeHtml(bookingConfig.bookRate || "-")}</td>
+      <td class="cell-currency">${escapeHtml(bookingConfig.currencyCode || "-")}</td>
+      <td class="cell-people">${escapeHtml(passengerText)}</td>
+      <td class="cell-runs">${escapeHtml(task.run_count || "-")}</td>
+      <td class="cell-status">${renderStatusBadge(task)}</td>
+      <td class="cell-passport">${passport}</td>
+      <td class="cell-actions">
         ${renderTaskActions(task)}
       </td>
     </tr>`;
@@ -956,6 +982,7 @@ function statusMeta(task) {
   if (task.in_flight) return { label: "执行中", variant: "running" };
   if (task.status === "PAUSED") return { label: "已暂停", variant: "paused" };
   if (task.status === "STOPPED") return { label: "已结束", variant: "stopped" };
+  if (isWaitingForPrecheck(task)) return { label: "等待预检", variant: "paused" };
   if (task.last_status_code !== null && task.last_status_code !== undefined && Number(task.last_status_code) !== 200) {
     return { label: "失败", variant: "failed" };
   }
@@ -980,6 +1007,16 @@ function renderTaskIdCell(taskId) {
         ${renderIcon("copy")}
       </button>
     </div>`;
+}
+
+function isWaitingForPrecheck(task) {
+  return (
+    task.status === "ACTIVE"
+    && Boolean(task.parent_task_id)
+    && task.task_type === "shamBooking"
+    && !task.in_flight
+    && !task.next_run_at
+  );
 }
 
 function abbreviateTaskId(taskId) {
@@ -1334,19 +1371,27 @@ function renderChildTaskDetail(task) {
 
 function renderParentTaskDetail(task) {
   const children = childTasksFor(task.task_id);
+  const precheckCount = children.filter(isPrecheckTask).length;
   els.successCount.textContent = sumBy(children, "success_count");
   els.failureCount.textContent = sumBy(children, "failure_count");
-  els.intervalInfo.textContent = "主任务不执行";
+  els.intervalInfo.textContent = precheckCount ? "预检释放" : "主任务不执行";
   setResultJson(
     {
       taskId: task.task_id,
       type: "parent",
-      message: "主任务只负责拆分子任务；真实执行和 Log 都在子任务维度。",
+      message: precheckCount
+        ? "主任务先执行 search 预检；匹配航班号和舱位后释放全部押位子任务。"
+        : "主任务只负责拆分子任务；真实执行和 Log 都在子任务维度。",
       passengerRange: task.passenger_range || "-",
-      childCount: children.length,
+      precheckCount,
+      childCount: children.length - precheckCount,
     }
   );
   renderChildSummaries(children);
+}
+
+function isPrecheckTask(task) {
+  return Boolean(task.parent_task_id) && task.task_type === "search";
 }
 
 function childTasksFor(parentTaskId) {
@@ -1366,12 +1411,13 @@ function renderChildSummaries(children) {
   }
   els.attemptRows.innerHTML = children
     .map((child) => {
-      const passengerCount = child.passenger_count || child.task_data?.ext?.passengerCount || "-";
+      const isPrecheck = isPrecheckTask(child);
+      const passengerCount = isPrecheck ? "-" : child.passenger_count || child.task_data?.ext?.passengerCount || "-";
       const updatedAt = child.updated_at ? formatTime(child.updated_at) : "-";
       return `
         <div data-task-id="${escapeHtml(child.task_id)}" class="attempt-item child-summary-row">
           <div class="attempt-item-head">
-            <span class="attempt-index">#${escapeHtml(child.child_index || "-")}</span>
+            <span class="attempt-index">${isPrecheck ? "预检" : `#${escapeHtml(child.child_index || "-")}`}</span>
             ${renderStatusBadge(child)}
           </div>
           <div class="attempt-message" title="${escapeAttr(child.task_id)}">${escapeHtml(abbreviateTaskId(child.task_id))}</div>
@@ -1580,11 +1626,34 @@ function attemptSeverity(attempt) {
 
 async function copyText(text, label = "内容") {
   try {
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      fallbackCopyText(text);
+    }
     toast(`${label}已复制`);
   } catch {
-    toast("复制失败，请手动复制");
+    try {
+      fallbackCopyText(text);
+      toast(`${label}已复制`);
+    } catch {
+      toast("复制失败，请手动复制");
+    }
   }
+}
+
+function fallbackCopyText(text) {
+  const input = document.createElement("textarea");
+  input.value = String(text || "");
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.left = "-9999px";
+  input.style.top = "0";
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  if (!copied) throw new Error("copy failed");
 }
 
 function renderIcon(name) {
@@ -1727,6 +1796,9 @@ function bindEvents() {
   els.clearLogBtn.addEventListener("click", () => {
     clearSelectedTask();
   });
+  if (els.settingsSaveBtn) {
+    els.settingsSaveBtn.addEventListener("click", () => saveSettings().catch(showError));
+  }
   [
     els.taskIdFilter,
     els.taskDepFilter,
@@ -1776,6 +1848,8 @@ function bindEvents() {
     if (event.target.closest("input[data-task-select]")) return;
     const copyButton = event.target.closest("button[data-copy-task-id]");
     if (copyButton) {
+      event.preventDefault();
+      event.stopPropagation();
       copyText(copyButton.dataset.copyTaskId, "任务 ID").catch(showError);
       return;
     }
@@ -1799,6 +1873,8 @@ function bindEvents() {
   els.pnrRows.addEventListener("click", (event) => {
     const copyButton = event.target.closest("button[data-copy-task-id]");
     if (copyButton) {
+      event.preventDefault();
+      event.stopPropagation();
       copyText(copyButton.dataset.copyTaskId, "任务 ID").catch(showError);
     }
   });
@@ -1838,6 +1914,7 @@ function showError(error) {
 async function init() {
   bindEvents();
   await loadSources();
+  await loadSettings();
   resetFormDefaults();
   await refreshAll();
   setInterval(() => refreshAll().catch(showError), 5000);

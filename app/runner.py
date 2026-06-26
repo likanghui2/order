@@ -123,7 +123,7 @@ class LocalRunner:
                 "taskType": task["task_type"],
                 "taskData": task["task_data"],
             }
-            task_callable = self._load_task(task["source"])
+            task_callable = self._load_task(task["source"], task["task_type"])
             with self._source_proxy(task["source"]):
                 result = task_callable(payload)
             parsed = self._parse_result(result)
@@ -139,16 +139,17 @@ class LocalRunner:
             LOG.error({"taskId": task_id, "error": str(exc)}, "本地执行异常")
             self.store.fail_attempt(task_id, attempt_no, f"本地执行异常: {exc}", time.perf_counter() - start)
 
-    def _load_task(self, source: str) -> Callable[[dict[str, Any]], Any]:
+    def _load_task(self, source: str, task_type: str) -> Callable[[dict[str, Any]], Any]:
         source = source.upper()
-        if source in self._task_cache:
-            return self._task_cache[source]
-        module_name = module_for_source(source)
+        cache_key = f"{source}:{task_type}"
+        if cache_key in self._task_cache:
+            return self._task_cache[cache_key]
+        module_name = module_for_source(source, task_type)
         if not module_name:
-            raise ValueError(f"不支持的 source: {source}")
+            raise ValueError(f"不支持的 source/taskType: {source}/{task_type}")
         module = importlib.import_module(module_name)
         task = getattr(module, "main")
-        self._task_cache[source] = task
+        self._task_cache[cache_key] = task
         return task
 
     @contextmanager

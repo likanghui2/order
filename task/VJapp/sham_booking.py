@@ -372,9 +372,9 @@ def _build_demo_task_data():
         "taskData": {
             "depAirport": "SGN",
             "arrAirport": "PVG",
-            "depDate": "20260726",
+            "depDate": "20260826",
             "flightNumber": "VJ3900",
-            "cabin": "J",
+            "cabin": "U",
             "bookingConfig": {
                 "bookRate": 2,
                 "currencyCode": "VND"

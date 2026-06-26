@@ -18,8 +18,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .runner import LocalRunner
-from .source_registry import normalize_source, supported_sources
-from .store import ACTIVE, TaskStore
+from .source_registry import module_for_source, normalize_source, supported_sources
+from .store import ACTIVE, DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT, TaskStore
 
 
 APP_DIR = Path(__file__).resolve().parents[1]
@@ -54,6 +54,10 @@ class SourceProxyPayload(BaseModel):
     region: Optional[str] = None
     session_time: Optional[int] = Field(default=None, ge=1, alias="sessionTime")
     format: Optional[str] = None
+
+
+class AppSettingsPayload(BaseModel):
+    precheck_resource_miss_limit: Optional[int] = Field(default=None, ge=1, le=1000, alias="precheckResourceMissLimit")
 
 
 store = TaskStore(DB_PATH)
@@ -94,6 +98,19 @@ def health():
 @app.get("/api/sources")
 def sources():
     return {"sources": supported_sources()}
+
+
+@app.get("/api/settings")
+def get_settings():
+    return _settings_response(store.get_app_settings())
+
+
+@app.put("/api/settings")
+def save_settings(request: AppSettingsPayload):
+    payload: dict[str, Any] = {}
+    if request.precheck_resource_miss_limit is not None:
+        payload["precheck_resource_miss_limit"] = request.precheck_resource_miss_limit
+    return _settings_response(store.update_app_settings(payload))
 
 
 @app.get("/api/source-proxies")
@@ -393,6 +410,7 @@ def _first_present(data: dict[str, Any], *keys: str) -> Any:
 def _create_task_tree(payload: dict[str, Any], passenger_range: str, passenger_counts: list[int]) -> dict[str, Any]:
     parent_payload = dict(payload)
     parent_task_id = parent_payload["task_id"]
+    has_search_precheck = bool(module_for_source(parent_payload["source"], "search"))
     parent_payload["is_parent"] = True
     parent_payload["passenger_range"] = passenger_range or _format_passenger_range(passenger_counts)
     parent_payload["first_run_at"] = None
@@ -401,6 +419,16 @@ def _create_task_tree(payload: dict[str, Any], passenger_range: str, passenger_c
     children = []
 
     try:
+        if has_search_precheck:
+            precheck_payload = dict(payload)
+            precheck_payload["task_id"] = _precheck_task_id(parent_task_id)
+            precheck_payload["task_type"] = "search"
+            precheck_payload["parent_task_id"] = parent_task_id
+            precheck_payload["child_index"] = 0
+            precheck_payload["passenger_range"] = parent_payload["passenger_range"]
+            precheck_payload["task_data"] = _search_task_data_from_sham(payload["task_data"])
+            precheck_payload["max_runs"] = None
+            children.append(store.create_task(precheck_payload))
         for index, passenger_count in enumerate(passenger_counts, start=1):
             child_payload = dict(payload)
             child_payload["task_id"] = _child_task_id(parent_task_id, passenger_count, index)
@@ -409,6 +437,8 @@ def _create_task_tree(payload: dict[str, Any], passenger_range: str, passenger_c
             child_payload["passenger_count"] = passenger_count
             child_payload["passenger_range"] = parent_payload["passenger_range"]
             child_payload["task_data"] = _task_data_for_passenger_count(payload["task_data"], passenger_count)
+            if has_search_precheck:
+                child_payload["next_run_at"] = None
             children.append(store.create_task(child_payload))
     except Exception:
         store.delete_task(parent_task_id)
@@ -417,12 +447,42 @@ def _create_task_tree(payload: dict[str, Any], passenger_range: str, passenger_c
     return parent
 
 
+def _search_task_data_from_sham(task_data: dict[str, Any]) -> dict[str, Any]:
+    booking_config = task_data.get("bookingConfig") or {}
+    ext = task_data.get("ext") or {}
+    return {
+        "callbackData": task_data.get("callbackData") or {},
+        "freightRateType": task_data.get("freightRateType") or "PT",
+        "depAirport": task_data.get("depAirport"),
+        "arrAirport": task_data.get("arrAirport"),
+        "depDate": _format_dep_date(task_data.get("depDate")),
+        "retDate": task_data.get("retDate") or "",
+        "adultNumber": 1,
+        "childNumber": 0,
+        "currencyCode": booking_config.get("currencyCode"),
+        "flightNumber": task_data.get("flightNumber"),
+        "cabin": task_data.get("cabin"),
+        "cabinLevel": ext.get("cabinLevel") or task_data.get("cabinLevel") or "Y",
+        "privateCode": ext.get("privateCode") or task_data.get("privateCode") or [],
+    }
+
+
 def _task_data_for_passenger_count(task_data: dict[str, Any], passenger_count: int) -> dict[str, Any]:
     child_task_data = deepcopy(task_data)
     ext = dict(child_task_data.get("ext") or {})
     ext["passengerCount"] = passenger_count
     child_task_data["ext"] = ext
     return child_task_data
+
+
+def _precheck_task_id(parent_task_id: str) -> str:
+    base_id = f"{parent_task_id}-SEARCH"
+    if not store.get_task(base_id):
+        return base_id
+    while True:
+        candidate = f"{base_id}-{uuid.uuid4().hex[:4]}"
+        if not store.get_task(candidate):
+            return candidate
 
 
 def _child_task_id(parent_task_id: str, passenger_count: int, index: int) -> str:
@@ -731,6 +791,12 @@ def _proxy_response(item: dict[str, Any]) -> dict[str, Any]:
         "format": item.get("format") or "",
         "updatedAt": item.get("updated_at"),
         "configured": bool(item.get("configured")),
+    }
+
+
+def _settings_response(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "precheckResourceMissLimit": item.get("precheck_resource_miss_limit") or DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT,
     }
 
 
