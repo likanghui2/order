@@ -12,6 +12,7 @@ from common.model.task.request_sham_booking_task_data_model import RequestShamBo
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util, machine_cache_util
 from common.utils.flight_util import FlightUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.sham_booking_util import ShamBookingUtil
 from common.utils.string_util import StringUtil
 from flights.vietjet.service.vz_web_service import VZWebService
@@ -88,7 +89,7 @@ def _sham_booking(self,
     def _book_once():
         script_cache = CACHE.get_data()
         if script_cache is None:
-            service = VZWebService(GlobalVariable.PROXY_INFO_DATA)
+            service = VZWebService(proxy_info_from_ext(sham_booking_data.ext))
         else:
             service = script_cache["value"]
 

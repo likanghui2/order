@@ -12,6 +12,7 @@ from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util
 from common.utils.date_util import DateUtil
 from common.utils.flight_util import FlightUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.sham_booking_util import ShamBookingUtil
 from flights.bookcabin.config import BookCabinConfig
 from flights.bookcabin.service.web_service import WebService
@@ -105,7 +106,7 @@ def main(self,
     cabin_class = ext.get("cabinClass") or BookCabinConfig.DEFAULT_CABIN_CLASS
     seat_count = sham_booking_data.ext.get('passengerCount', 1)
 
-    service = WebService(GlobalVariable.PROXY_INFO_DATA)
+    service = WebService(proxy_info_from_ext(ext))
     service.initialize_session()
     try:
         journey = _search_target_journey(

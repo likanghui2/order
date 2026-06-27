@@ -7,12 +7,12 @@ from common.errors.service_error import ServiceError, ServiceStateEnum
 from common.global_variable import GlobalVariable
 from common.model.flight.flight_bundle_model import FlightBundleModel
 from common.model.flight.flight_journey_model import FlightJourneyModel
-from common.model.proxy_Info_model import ProxyInfoModel
 from common.model.task.request_sham_booking_task_data_model import RequestShamBookingTaskDataModel
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util
 from common.utils.date_util import DateUtil
 from common.utils.flight_util import FlightUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.sham_booking_util import ShamBookingUtil
 from flights.garuda.service.app_service import AppService
 
@@ -40,15 +40,7 @@ def main(
     sham_booking_data: RequestShamBookingTaskDataModel,
     response_order_data: ResponseOrderInfoModel,
 ):
-    service = AppService(ProxyInfoModel(
-        host='lite.flashproxy.io',
-        port=6969,
-        username='BHF6UsNS',
-        password='X8ABIdpI',
-        region='US',
-        session_time=10,
-        format='http://BHF6UsNS-country-{region}:X8ABIdpI@{host}:{port}',
-    ))
+    service = AppService(proxy_info_from_ext(sham_booking_data.ext))
     service.initialize_session()
 
     dep_date = DateUtil.string_to_target_format(sham_booking_data.dep_date, "%Y-%m-%d")

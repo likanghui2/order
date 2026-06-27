@@ -11,6 +11,7 @@ from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util, machine_cache_util
 from common.utils.date_util import DateUtil
 from common.utils.flight_util import FlightUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from flights.cebupacificair_5j.flight_common.booking_utils import CebupacificairBookingUtils
 from flights.cebupacificair_5j.service.web_service import WebService
 
@@ -36,7 +37,7 @@ def main(self,
     script_cache = CACHE.get_data()
     if script_cache is None:
         LOG.info("重新初始化对象")
-        service = WebService(GlobalVariable.PROXY_INFO_DATA)
+        service = WebService(proxy_info_from_ext(booking_data.ext))
         service.initialize_session()
         service.initialize_html_session()
     else:

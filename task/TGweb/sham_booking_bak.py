@@ -13,6 +13,7 @@ from common.model.order.passenger_info_model import PassengerInfoModel
 from common.model.task.request_sham_booking_task_data_model import RequestShamBookingTaskDataModel
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.sham_booking_util import ShamBookingUtil
 from flights.thaiairways_tg.service.web_service_bak import WebService
 
@@ -90,7 +91,7 @@ def _sham_booking(self,
     promo_code = private_code[0] if private_code else ''
     product_tag = ext.get('productTag') or ''
 
-    service = WebService(GlobalVariable.PROXY_INFO_DATA)
+    service = WebService(proxy_info_from_ext(ext))
     service.initialize_session()
 
     journey = _search_target_journey(

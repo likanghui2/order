@@ -65,6 +65,7 @@ class TaskStore:
                 CREATE TABLE IF NOT EXISTS attempts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     task_id TEXT NOT NULL,
+                    execution_task_id TEXT,
                     attempt_no INTEGER NOT NULL,
                     status TEXT NOT NULL,
                     status_code INTEGER,
@@ -77,6 +78,7 @@ class TaskStore:
                 )
                 """
             )
+            self._ensure_attempt_columns(conn)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(status, in_flight, next_run_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_attempts_task ON attempts(task_id, id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_attempts_status_time ON attempts(status_code, finished_at)")
@@ -142,6 +144,15 @@ class TaskStore:
             "child_index": "ALTER TABLE tasks ADD COLUMN child_index INTEGER",
             "passenger_count": "ALTER TABLE tasks ADD COLUMN passenger_count INTEGER",
             "passenger_range": "ALTER TABLE tasks ADD COLUMN passenger_range TEXT",
+        }
+        for column, sql in column_sql.items():
+            if column not in existing_columns:
+                conn.execute(sql)
+
+    def _ensure_attempt_columns(self, conn: sqlite3.Connection) -> None:
+        existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(attempts)").fetchall()}
+        column_sql = {
+            "execution_task_id": "ALTER TABLE attempts ADD COLUMN execution_task_id TEXT",
         }
         for column, sql in column_sql.items():
             if column not in existing_columns:
@@ -398,23 +409,27 @@ class TaskStore:
                 )
         return [self._row_to_dict(row) for row in rows]
 
-    def start_attempt(self, task_id: str) -> int:
+    def start_attempt(self, task_id: str) -> dict[str, Any]:
         now = time.time()
         with self._lock, self._connect() as conn:
             task = conn.execute("SELECT run_count FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
             attempt_no = int(task["run_count"]) + 1 if task else 1
+            execution_task_id = _execution_task_id(task_id, attempt_no)
             conn.execute(
                 """
-                INSERT INTO attempts (task_id, attempt_no, status, started_at)
-                VALUES (?, ?, 'RUNNING', ?)
+                INSERT INTO attempts (task_id, execution_task_id, attempt_no, status, started_at)
+                VALUES (?, ?, ?, 'RUNNING', ?)
                 """,
-                (task_id, attempt_no, now),
+                (task_id, execution_task_id, attempt_no, now),
             )
             conn.execute(
                 "UPDATE tasks SET run_count = ?, updated_at = ? WHERE task_id = ?",
                 (attempt_no, now, task_id),
             )
-        return attempt_no
+        return {
+            "attempt_no": attempt_no,
+            "execution_task_id": execution_task_id,
+        }
 
     def finish_attempt(
         self,
@@ -885,6 +900,8 @@ class TaskStore:
             data["in_flight"] = bool(data["in_flight"])
         if "is_parent" in data:
             data["is_parent"] = bool(data["is_parent"])
+        if "execution_task_id" in data and not data.get("execution_task_id"):
+            data["execution_task_id"] = data.get("task_id") or ""
         return data
 
     @classmethod
@@ -984,6 +1001,10 @@ class TaskStore:
         }
 
 
+def _execution_task_id(task_id: str, attempt_no: int) -> str:
+    return f"{task_id}-RUN{attempt_no:04d}-{uuid.uuid4().hex[:8]}"
+
+
 def _is_search_precheck(row: sqlite3.Row) -> bool:
     return (
         row["task_type"] == "search"
@@ -1024,17 +1045,21 @@ def _search_precheck_result(result: Any, task_data: dict[str, Any]) -> dict[str,
     data = _as_dict(result_data.get("data"))
     journeys = _as_list(data.get("journeys")) or _as_list(result_data.get("journeys"))
     flight_found = False
+    available_cabins: list[str] = []
     for journey in journeys:
         journey_data = _as_dict(journey)
         if not _journey_has_flight_number(journey_data, target_flight_number):
             continue
         flight_found = True
-        if _journey_has_cabin(journey_data, target_cabin):
+        available_cabins.extend(_journey_cabin_candidates(journey_data))
+        matched_cabin = _journey_cabin_match_label(journey_data, target_cabin)
+        if matched_cabin:
             return {
                 "matched": True,
                 "reason": "matched",
                 "flightNumber": target_flight_number,
                 "cabin": target_cabin,
+                "cabinDisplay": matched_cabin,
                 "message": "匹配成功",
             }
     if flight_found:
@@ -1043,7 +1068,11 @@ def _search_precheck_result(result: Any, task_data: dict[str, Any]) -> dict[str,
             "reason": "cabinNotFound",
             "flightNumber": target_flight_number,
             "cabin": target_cabin,
-            "message": f"航班 {target_flight_number} 未找到舱位 {target_cabin}",
+            "availableCabins": _unique_texts(available_cabins),
+            "message": (
+                f"航班 {target_flight_number} 已找到，但未找到舱位 {target_cabin}；"
+                f"现有舱位：{_format_available_cabins(available_cabins)}"
+            ),
         }
     return {
         "matched": False,
@@ -1062,9 +1091,10 @@ def _precheck_display_message(
     miss_limit: int = DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT,
 ) -> str:
     if precheck_result.get("matched"):
+        cabin_display = precheck_result.get("cabinDisplay") or precheck_result.get("cabin")
         return (
             f"预检命中：航班 {precheck_result.get('flightNumber')} "
-            f"舱位 {precheck_result.get('cabin')}，已释放 {released_count} 个子任务"
+            f"舱位 {cabin_display}，已释放 {released_count} 个子任务"
         )
     message = precheck_result.get("message") or "未匹配目标航班和舱位"
     if _is_precheck_resource_miss(precheck_result):
@@ -1118,14 +1148,51 @@ def _journey_has_flight_number(journey: dict[str, Any], target_flight_number: st
 
 
 def _journey_has_cabin(journey: dict[str, Any], target_cabin: str) -> bool:
+    return bool(_journey_cabin_match_label(journey, target_cabin))
+
+
+def _journey_cabin_match_label(journey: dict[str, Any], target_cabin: str) -> str:
     for bundle in _as_list(journey.get("bundles")):
         bundle_data = _as_dict(bundle)
-        cabin = _normalize_cabin_for_precheck(bundle_data.get("cabin"))
-        if cabin == target_cabin:
-            return True
-        if target_cabin in _split_cabin_candidates(bundle_data.get("cabin")):
-            return True
-    return False
+        for cabin in _split_cabin_candidates_ordered(bundle_data.get("cabin")):
+            if cabin == target_cabin:
+                return _format_cabin_with_seat(cabin, bundle_data.get("seat"))
+    return ""
+
+
+def _journey_cabin_candidates(journey: dict[str, Any]) -> list[str]:
+    cabins: list[str] = []
+    for bundle in _as_list(journey.get("bundles")):
+        bundle_data = _as_dict(bundle)
+        cabins.extend(
+            _format_cabin_with_seat(cabin, bundle_data.get("seat"))
+            for cabin in _split_cabin_candidates_ordered(bundle_data.get("cabin"))
+        )
+    return _unique_texts(cabins)
+
+
+def _format_cabin_with_seat(cabin: str, seat_value: Any) -> str:
+    seat = _safe_int(seat_value)
+    if seat is None or seat < 0:
+        return cabin
+    return f"{cabin}{seat}"
+
+
+def _format_available_cabins(cabins: list[str]) -> str:
+    unique_cabins = _unique_texts(cabins)
+    return "、".join(unique_cabins) if unique_cabins else "无"
+
+
+def _unique_texts(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
 
 
 def _normalize_match_text(value: Any) -> str:
@@ -1137,12 +1204,17 @@ def _normalize_cabin_for_precheck(value: Any) -> str:
 
 
 def _split_cabin_candidates(value: Any) -> set[str]:
+    return set(_split_cabin_candidates_ordered(value))
+
+
+def _split_cabin_candidates_ordered(value: Any) -> list[str]:
     text = str(value or "")
-    return {
-        _normalize_cabin_for_precheck(item)
-        for item in text.replace("^", ",").replace("|", ",").split(",")
-        if _normalize_cabin_for_precheck(item)
-    }
+    candidates: list[str] = []
+    for item in text.replace("^", ",").replace("|", ",").split(","):
+        cabin = _normalize_cabin_for_precheck(item)
+        if cabin:
+            candidates.append(cabin)
+    return _unique_texts(candidates)
 
 
 def _book_rate(task_data: dict[str, Any]) -> Optional[int]:

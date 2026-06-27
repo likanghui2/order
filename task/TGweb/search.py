@@ -4,6 +4,7 @@ from common.global_variable import GlobalVariable
 from common.model.task.request_search_task_data_model import RequestSearchTaskDataModel
 from common.utils import celery_util, log_util, machine_cache_util
 from common.utils.date_util import DateUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from flights.thaiairways_tg.service.web_service import WebService
 
 CELERY_APP = celery_util.create(GlobalVariable.RABBITMQ_USERNAME, GlobalVariable.RABBITMQ_PASSWORD)
@@ -16,7 +17,7 @@ LOG = log_util.LogUtil('TGSearch')
 def main(self, search_data: RequestSearchTaskDataModel):
     script_cache = CACHE.get_data()
     if script_cache is None:
-        service = WebService(GlobalVariable.PROXY_INFO_DATA)
+        service = WebService(proxy_info_from_ext(search_data.ext))
         service.initialize_session()
     else:
         service = script_cache['value']

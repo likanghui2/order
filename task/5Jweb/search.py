@@ -5,6 +5,7 @@ from common.enums.task_type_enum import TaskTypeEnum
 from common.global_variable import GlobalVariable
 from common.model.task.request_search_task_data_model import RequestSearchTaskDataModel
 from common.utils import celery_util, log_util, machine_cache_util
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from flights.cebupacificair_5j.service.web_service import WebService
 
 CELERY_APP = celery_util.create(GlobalVariable.RABBITMQ_USERNAME, GlobalVariable.RABBITMQ_PASSWORD)
@@ -19,7 +20,7 @@ def main(self, search_data: RequestSearchTaskDataModel):
     script_cache = CACHE.get_data()
     if script_cache is None:
         LOG.info("重新初始化对象")
-        service = WebService(GlobalVariable.PROXY_INFO_DATA)
+        service = WebService(proxy_info_from_ext(search_data.ext))
         service.initialize_session()
         service.initialize_html_session()
     else:

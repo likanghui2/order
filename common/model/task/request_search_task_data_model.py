@@ -17,3 +17,4 @@ class RequestSearchTaskDataModel(BaseModel):
     flight_number: Optional[str] = Field(default=None, alias='flightNumber')
     cabin_level: Optional[str] = Field(default='Y', alias='cabinLevel')
     private_code: Optional[List[str]] = Field(default_factory=list, alias='privateCode')
+    ext: Optional[dict] = Field(default=None, alias='ext')

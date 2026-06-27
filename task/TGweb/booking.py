@@ -9,6 +9,7 @@ from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util
 from common.utils.date_util import DateUtil
 from common.utils.flight_util import FlightUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from flights.thaiairways_tg.service.web_service import WebService
 
 CELERY_APP = celery_util.create(GlobalVariable.RABBITMQ_USERNAME, GlobalVariable.RABBITMQ_PASSWORD)
@@ -20,7 +21,7 @@ LOG = log_util.LogUtil('TGBooking')
 def main(self,
          booking_data: RequestBookingTaskDataModel,
          response_order_data: ResponseOrderInfoModel):
-    service = WebService(GlobalVariable.PROXY_INFO_DATA)
+    service = WebService(proxy_info_from_ext(booking_data.ext))
     service.initialize_session()
 
     adult_count, child_count = booking_data.get_passenger_number()

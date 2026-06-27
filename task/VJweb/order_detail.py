@@ -17,7 +17,6 @@
 # def main(self, request_order_detail: RequestOrderDetailTaskModel):
 #     script_cache = CACHE.get_data()
 #     if script_cache is None:
-#         service = WebService(GlobalVariable.PROXY_INFO_DATA)
 #         service.init_cloudflare()
 #     else:
 #         service = script_cache['value']

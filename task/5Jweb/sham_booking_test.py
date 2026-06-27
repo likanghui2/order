@@ -15,6 +15,7 @@ from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util, machine_cache_util
 from common.utils.date_util import DateUtil
 from common.utils.flight_util import FlightUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.redis_util import RedisUtil
 from common.utils.sham_booking_util import ShamBookingUtil
 from flights.cebupacificair_5j.service.web_service import WebService
@@ -100,11 +101,11 @@ def _is_sold_out_error(error: ServiceError) -> bool:
     )
 
 
-def _get_clean_service():
+def _get_clean_service(ext: Optional[dict]):
     service_cache = CACHE.get_data()
     if service_cache is None:
         LOG.info('未命中本机session缓存，初始化新session', 'session缓存')
-        service = WebService(GlobalVariable.PROXY_INFO_DATA)
+        service = WebService(proxy_info_from_ext(ext))
         service.initialize_html_session_booking()
         return service, None
     LOG.info(f"命中本机session缓存，过期时间[{service_cache['timeOut']}]", 'session缓存')
@@ -208,7 +209,7 @@ def _occupy_available_seats(sham_booking_data: RequestShamBookingTaskDataModel,
     if trust_seat_count and use_bundle.seat > 0:
         seat_number = _trusted_first_seat_count(use_bundle.seat)
         if service is None:
-            service, timeout_time = _get_clean_service()
+            service, timeout_time = _get_clean_service(sham_booking_data.ext)
         try:
             trip_passengers = _trip_passengers(service, sham_booking_data, journey, use_bundle, seat_number)
             _hold_service(held_services, service, trip_passengers, '可信座位首次trip')
@@ -233,7 +234,7 @@ def _occupy_available_seats(sham_booking_data: RequestShamBookingTaskDataModel,
             )
     else:
         if service is None:
-            service, timeout_time = _get_clean_service()
+            service, timeout_time = _get_clean_service(sham_booking_data.ext)
         try:
             trip_passengers = _trip_passengers(service, sham_booking_data, journey, use_bundle, 1)
             _hold_service(held_services, service, trip_passengers, '缓存航班先占1人')
@@ -253,7 +254,7 @@ def _occupy_available_seats(sham_booking_data: RequestShamBookingTaskDataModel,
         while True:
             try:
                 if service is None:
-                    service, timeout_time = _get_clean_service()
+                    service, timeout_time = _get_clean_service(sham_booking_data.ext)
                 trip_passengers = _trip_passengers(service, sham_booking_data, journey, use_bundle, 25)
                 _hold_service(held_services, service, trip_passengers, '25人整块trip')
                 passengers.extend(trip_passengers)
@@ -270,7 +271,7 @@ def _occupy_available_seats(sham_booking_data: RequestShamBookingTaskDataModel,
     for seat_number in _tail_seat_counts(tail_max_seat):
         try:
             if service is None:
-                service, timeout_time = _get_clean_service()
+                service, timeout_time = _get_clean_service(sham_booking_data.ext)
             trip_passengers = _trip_passengers(service, sham_booking_data, journey, use_bundle, seat_number)
             _hold_service(held_services, service, trip_passengers, f'尾数trip[{seat_number}]')
             passengers.extend(trip_passengers)
@@ -312,7 +313,7 @@ def main(self,
         LOG.info('未传入cabin，跳过航班缓存读写，强制实时查询航班', '航班缓存')
     if not cache_data:
         LOG.info(f'未命中航班缓存，key[{cache_key}]，开始实时查询航班', '航班缓存')
-        service = WebService(GlobalVariable.PROXY_INFO_DATA)
+        service = WebService(proxy_info_from_ext(sham_booking_data.ext))
         service.initialize_html_session_booking()
 
         journey_list = service.availability(
@@ -356,7 +357,7 @@ def main(self,
                 '航班缓存'
             )
             REDIS.delete_key(cache_key)
-            service = WebService(GlobalVariable.PROXY_INFO_DATA)
+            service = WebService(proxy_info_from_ext(sham_booking_data.ext))
             service.initialize_html_session_booking()
             journey_list = service.availability(
                 airport_data=[(

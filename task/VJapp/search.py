@@ -6,6 +6,7 @@ from common.enums.task_type_enum import TaskTypeEnum
 from common.global_variable import GlobalVariable
 from common.model.task.request_search_task_data_model import RequestSearchTaskDataModel
 from common.utils import celery_util, log_util, machine_cache_util
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from flights.vietjet.service.app_service import AppService
 
 CELERY_APP = celery_util.create(GlobalVariable.RABBITMQ_USERNAME, GlobalVariable.RABBITMQ_PASSWORD)
@@ -28,7 +29,7 @@ def _app_date(date_value: Optional[str]) -> Optional[str]:
 def main(self, search_data: RequestSearchTaskDataModel):
     script_cache = CACHE.get_data()
     if script_cache is None:
-        service = AppService(GlobalVariable.PROXY_INFO_DATA)
+        service = AppService(proxy_info_from_ext(search_data.ext))
     else:
         service = script_cache["value"]
 

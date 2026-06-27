@@ -27,6 +27,8 @@ STATIC_DIR = APP_DIR / "static"
 DB_PATH = Path(os.getenv("LOCAL_SHAM_DB", APP_DIR / "local_sham_booking.db"))
 MAX_TABLE_IMPORT_ROWS = 1001
 MAX_TABLE_IMPORT_COLUMNS = 50
+TABLE_IMPORT_HEADERS = ["Source", "出发地", "目的地", "日期", "航班号", "舱位", "查询延迟", "预计延迟", "币种", "人数", "PNR有效期", "护照"]
+TABLE_IMPORT_COLUMN_WIDTHS = [14, 12, 12, 14, 14, 10, 12, 12, 10, 12, 14, 10]
 
 
 class TaskPayload(BaseModel):
@@ -43,6 +45,10 @@ class TaskPayload(BaseModel):
 class ImportPayload(BaseModel):
     tasks: Any
     replace_existing: bool = Field(default=True, alias="replaceExisting")
+
+
+class TaskExportPayload(BaseModel):
+    task_ids: list[str] = Field(default_factory=list, alias="taskIds")
 
 
 class SourceProxyPayload(BaseModel):
@@ -226,6 +232,22 @@ def download_table_import_template():
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="sham-booking-table-template.xlsx"'},
+    )
+
+
+@app.post("/api/tasks/export")
+def export_tasks(request: TaskExportPayload):
+    task_ids = _unique_task_ids(request.task_ids)
+    tasks = _tasks_for_export(task_ids)
+    rows = _export_rows_from_tasks(tasks)
+    if not rows:
+        raise HTTPException(status_code=400, detail="没有可导出的主任务")
+    buffer = _build_table_import_workbook([TABLE_IMPORT_HEADERS, *rows], "当前任务导出")
+    filename = f"sham-booking-tasks-{datetime.now().strftime('%Y%m%d-%H%M%S')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -545,7 +567,93 @@ def _coerce_import_items(value: Any) -> list[dict[str, Any]]:
     raise HTTPException(status_code=400, detail="导入内容必须是数组、tasks 数组或 taskId 映射")
 
 
+def _unique_task_ids(task_ids: list[str]) -> list[str]:
+    result = []
+    seen = set()
+    for task_id in task_ids or []:
+        text = str(task_id or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
+
+
+def _tasks_for_export(task_ids: list[str]) -> list[dict[str, Any]]:
+    if task_ids:
+        tasks = []
+        missing = []
+        for task_id in task_ids:
+            task = store.get_task(task_id)
+            if not task:
+                missing.append(task_id)
+                continue
+            tasks.append(task)
+        if missing:
+            raise HTTPException(status_code=404, detail=f"任务不存在：{missing[0]}")
+        return tasks
+    return store.list_tasks()
+
+
+def _export_rows_from_tasks(tasks: list[dict[str, Any]]) -> list[list[Any]]:
+    rows = []
+    for task in tasks:
+        if task.get("parent_task_id") or task.get("task_type") == "search":
+            continue
+        rows.append(_table_import_row_from_task(task))
+    return rows
+
+
+def _table_import_row_from_task(task: dict[str, Any]) -> list[Any]:
+    task_data = task.get("task_data") or {}
+    booking_config = task_data.get("bookingConfig") or {}
+    ext = task_data.get("ext") or {}
+    return [
+        task.get("source") or "",
+        task_data.get("depAirport") or "",
+        task_data.get("arrAirport") or "",
+        _format_dep_date(task_data.get("depDate")),
+        task_data.get("flightNumber") or "",
+        task_data.get("cabin") or "",
+        task.get("interval_seconds") or "",
+        booking_config.get("bookRate") or "",
+        booking_config.get("currencyCode") or "",
+        _export_passenger_range(task, task_data),
+        _first_present(ext, "pnrValidMinutes", "pnrValidityMinutes", "pnrValidMinute") or "",
+        "是" if _export_use_passport(task_data) else "否",
+    ]
+
+
+def _export_passenger_range(task: dict[str, Any], task_data: dict[str, Any]) -> str:
+    if task.get("passenger_range"):
+        return str(task["passenger_range"])
+    ext = task_data.get("ext") or {}
+    passenger_count = task.get("passenger_count") or ext.get("passengerCount")
+    if passenger_count:
+        return f"{passenger_count}-{passenger_count}"
+    return ""
+
+
+def _export_use_passport(task_data: dict[str, Any]) -> bool:
+    ext = task_data.get("ext") or {}
+    if "usePassport" not in ext:
+        return True
+    value = ext.get("usePassport")
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in {"false", "0", "no", "否"}
+
+
 def _build_table_import_template() -> BytesIO:
+    rows = [
+        TABLE_IMPORT_HEADERS,
+        ["5JWEB", "SZX", "KUL", "2026-06-03", "AK127", "L", 30, 10, "MYR", "1-3", 120, "是"],
+        ["VJWEB", "CAN", "SGN", "2026-06-07", "VJ3909", "H", 30, 10, "VND", "1-1", 60, "是"],
+    ]
+    return _build_table_import_workbook(rows, "押位任务导入")
+
+
+def _build_table_import_workbook(rows: list[list[Any]], sheet_title: str) -> BytesIO:
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Font, PatternFill
@@ -553,16 +661,9 @@ def _build_table_import_template() -> BytesIO:
     except ImportError as exc:
         raise HTTPException(status_code=500, detail="缺少 openpyxl 依赖，请更新 requirements-local.txt 后安装") from exc
 
-    headers = ["Source", "出发地", "目的地", "日期", "航班号", "舱位", "查询延迟", "预计延迟", "币种", "人数", "PNR有效期", "护照"]
-    rows = [
-        headers,
-        ["5JWEB", "SZX", "KUL", "2026-06-03", "AK127", "L", 30, 10, "MYR", "1-3", 120, "是"],
-        ["VJWEB", "CAN", "SGN", "2026-06-07", "VJ3909", "H", 30, 10, "VND", "1-1", 60, "是"],
-    ]
-
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = "押位任务导入"
+    sheet.title = sheet_title
     for row in rows:
         sheet.append(row)
 
@@ -573,8 +674,7 @@ def _build_table_import_template() -> BytesIO:
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    widths = [14, 12, 12, 14, 14, 10, 12, 12, 10, 12, 14, 10]
-    for index, width in enumerate(widths, start=1):
+    for index, width in enumerate(TABLE_IMPORT_COLUMN_WIDTHS, start=1):
         sheet.column_dimensions[get_column_letter(index)].width = width
     sheet.freeze_panes = "A2"
 
@@ -731,6 +831,10 @@ def _normalize_source_proxy_payload(source: str, request: SourceProxyPayload) ->
     enabled = bool(data.get("enabled"))
     if enabled and (not host or port is None):
         raise HTTPException(status_code=400, detail="启用代理时必须填写代理 IP/Host 和端口")
+    if enabled and (not username or not password):
+        raise HTTPException(status_code=400, detail="启用代理时必须填写用户名和密码")
+    if enabled and not format_value:
+        raise HTTPException(status_code=400, detail="启用代理时必须填写 Format")
     return {
         "source": normalized_source,
         "enabled": enabled,

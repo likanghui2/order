@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>智能航空压位任务管理系统</title>
-    <link rel="stylesheet" href="/static/styles.css?v=41" />
+    <link rel="stylesheet" href="/static/styles.css?v=43" />
   </head>
   <body>
     <div class="tool-window">
@@ -244,6 +244,7 @@
               <h2>当前任务</h2>
               <div class="task-list-tools">
                 <span id="taskCount">0 个任务</span>
+                <button id="taskExportBtn" class="text-button" type="button">导出当前</button>
                 <div class="bulk-actions" aria-label="批量操作">
                   <span id="selectedTaskCount">已选 0 个</span>
                   <button id="bulkPauseBtn" class="text-button" type="button" disabled>暂停选中</button>
@@ -366,10 +367,7 @@
                 <span>成功 <strong id="successCount">0</strong></span>
                 <span>失败 <strong id="failureCount">0</strong></span>
                 <span>间隔 <strong id="intervalInfo">-</strong></span>
-                <span>数据库 <strong id="dbInfo">-</strong></span>
               </div>
-              <div class="log-block-title">最近返回</div>
-              <pre id="lastResult" class="result-box"></pre>
               <div class="log-block-title">执行记录</div>
               <div id="attemptRows" class="attempt-list"></div>
             </div>
@@ -521,6 +519,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/app.js?v=43"></script>
+    <script src="/static/app.js?v=48"></script>
   </body>
 </html>

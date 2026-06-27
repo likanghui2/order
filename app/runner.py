@@ -1,16 +1,14 @@
 import importlib
+import copy
 import json
 import threading
 import time
-from contextlib import contextmanager
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Optional
 
-from common.global_variable import GlobalVariable
 from common.model.proxy_Info_model import ProxyInfoModel
 from common.utils import log_util
 
-from .proxy_context import ensure_thread_local_proxy_provider
 from .source_registry import module_for_source
 from .store import TaskStore
 
@@ -31,9 +29,6 @@ class LocalRunner:
         self._running_threads: dict[threading.Thread, str] = {}
         self._running_lock = threading.RLock()
         self._task_cache: dict[str, Callable[[dict[str, Any]], Any]] = {}
-        self._proxy_provider = ensure_thread_local_proxy_provider(GlobalVariable.PROXY_INFO_DATA)
-        GlobalVariable.PROXY_INFO_DATA = self._proxy_provider
-        self._default_proxy = self._proxy_provider.default_copy()
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -114,18 +109,20 @@ class LocalRunner:
 
     def _execute_task(self, task: dict[str, Any]) -> None:
         task_id = task["task_id"]
-        attempt_no = self.store.start_attempt(task_id)
+        attempt = self.store.start_attempt(task_id)
+        attempt_no = int(attempt["attempt_no"])
+        execution_task_id = str(attempt["execution_task_id"])
         start = time.perf_counter()
         try:
+            task_data = self._task_data_with_proxy(task["source"], task["task_data"])
             payload = {
-                "taskId": task_id,
+                "taskId": execution_task_id,
                 "source": task["source"],
                 "taskType": task["task_type"],
-                "taskData": task["task_data"],
+                "taskData": task_data,
             }
             task_callable = self._load_task(task["source"], task["task_type"])
-            with self._source_proxy(task["source"]):
-                result = task_callable(payload)
+            result = task_callable(payload)
             parsed = self._parse_result(result)
             self.store.finish_attempt(
                 task_id=task_id,
@@ -136,7 +133,7 @@ class LocalRunner:
                 duration_seconds=time.perf_counter() - start,
             )
         except Exception as exc:
-            LOG.error({"taskId": task_id, "error": str(exc)}, "本地执行异常")
+            LOG.error({"taskId": task_id, "executionTaskId": execution_task_id, "error": str(exc)}, "本地执行异常")
             self.store.fail_attempt(task_id, attempt_no, f"本地执行异常: {exc}", time.perf_counter() - start)
 
     def _load_task(self, source: str, task_type: str) -> Callable[[dict[str, Any]], Any]:
@@ -152,23 +149,35 @@ class LocalRunner:
         self._task_cache[cache_key] = task
         return task
 
-    @contextmanager
-    def _source_proxy(self, source: str) -> Iterator[None]:
-        self._proxy_provider.set_current(self._build_proxy_info(source))
-        try:
-            yield
-        finally:
-            self._proxy_provider.clear_current()
+    def _task_data_with_proxy(self, source: str, task_data: Any) -> Any:
+        if not isinstance(task_data, dict):
+            return task_data
+        data = copy.deepcopy(task_data)
+        proxy_payload = self._source_proxy_ext_payload(source)
+        if not proxy_payload:
+            return data
+        ext = data.get("ext")
+        if not isinstance(ext, dict):
+            ext = {}
+        ext["proxy"] = proxy_payload
+        data["ext"] = ext
+        return data
 
-    def _build_proxy_info(self, source: str) -> ProxyInfoModel:
+    def _source_proxy_ext_payload(self, source: str) -> Optional[dict[str, Any]]:
         config = self.store.get_source_proxy_config(source)
         if not config or not config.get("enabled"):
-            return self._default_proxy.model_copy(deep=True)
+            return None
+        proxy = self._build_proxy_info_from_config(source, config)
+        return self._proxy_info_to_ext(proxy, source)
+
+    def _build_proxy_info_from_config(self, source: str, config: dict[str, Any]) -> ProxyInfoModel:
         host = str(config.get("host") or "").strip()
         port = config.get("port")
         if not host or port is None:
             raise ValueError(f"{source} 代理已启用，但 host/port 未配置")
-        format_value = str(config.get("format") or "").strip() or self._default_proxy_format(config)
+        format_value = str(config.get("format") or "").strip()
+        if not format_value:
+            raise ValueError(f"{source} 代理已启用，但 format 未配置")
         return ProxyInfoModel(
             host=host,
             port=int(port),
@@ -180,14 +189,18 @@ class LocalRunner:
         )
 
     @staticmethod
-    def _default_proxy_format(config: dict[str, Any]) -> str:
-        has_auth = bool(config.get("username") and config.get("password"))
-        has_region_session = bool(config.get("region") and config.get("session_time"))
-        if has_auth and has_region_session:
-            return "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
-        if has_auth:
-            return "http://{username}:{password}@{host}:{port}"
-        return "http://{host}:{port}"
+    def _proxy_info_to_ext(proxy: ProxyInfoModel, source: str) -> dict[str, Any]:
+        return {
+            "source": source.upper(),
+            "host": proxy.host,
+            "port": proxy.port,
+            "username": proxy.username,
+            "password": proxy.password,
+            "region": proxy.region,
+            "sessId": proxy.sess_id,
+            "sessionTime": proxy.session_time,
+            "format": proxy.format,
+        }
 
     def _collect_finished(self, block: bool) -> None:
         with self._running_lock:

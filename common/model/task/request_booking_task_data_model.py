@@ -24,6 +24,7 @@ class RequestBookingTaskDataModel(BaseModel):
     contact_info: ContactInfoModel = Field(..., alias='contactInfo',description='联系人列表')
     payment_info: PaymentInfoModel = Field(..., alias='paymentInfo',description='支付信息')
     pnr: Optional[str] = Field(default="",alias="pnr")
+    ext: Optional[dict] = Field(default=None, alias="ext")
 
 
     def get_passenger_number(self):
@@ -35,6 +36,5 @@ class RequestBookingTaskDataModel(BaseModel):
         chd_number = sum([1 for x in self.passengers if x.type == PassengerTypeEnum.CHD])
 
         return adt_number,chd_number
-
 
 

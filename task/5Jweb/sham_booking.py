@@ -14,6 +14,7 @@ from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util
 from common.utils.date_util import DateUtil
 from common.utils.flight_util import FlightUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.sham_booking_util import ShamBookingUtil
 from flights.cebupacificair_5j.service.web_service import WebService
 
@@ -56,7 +57,7 @@ def main(self,
          sham_booking_data: RequestShamBookingTaskDataModel,
          response_order_data: ResponseOrderInfoModel):
     LOG.info("初始化押位对象")
-    service = WebService(GlobalVariable.PROXY_INFO_DATA)
+    service = WebService(proxy_info_from_ext(sham_booking_data.ext))
     service.initialize_html_session_booking()
 
     dep_date = DateUtil.string_to_target_format(sham_booking_data.dep_date, '%Y-%m-%d')

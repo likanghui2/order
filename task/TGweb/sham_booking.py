@@ -13,6 +13,7 @@ from common.model.order.passenger_info_model import PassengerInfoModel
 from common.model.task.request_sham_booking_task_data_model import RequestShamBookingTaskDataModel
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.sham_booking_util import ShamBookingUtil
 from flights.thaiairways_tg.service.web_service import WebService as NewWebService
 from flights.thaiairways_tg.service.web_service_bak import WebService as WwwWebService
@@ -95,7 +96,7 @@ def _sham_booking_by_site(self,
     product_tag = ext.get('productTag') or ''
 
     LOG.info(f"TG押位使用站点[{site_name}]", "押位流程")
-    service = service_class(GlobalVariable.PROXY_INFO_DATA)
+    service = service_class(proxy_info_from_ext(ext))
     service.initialize_session()
 
     journey = _search_target_journey(

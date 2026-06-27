@@ -10,6 +10,7 @@ from common.model.task.request_booking_task_data_model import RequestBookingTask
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util
 from common.utils.flight_util import FlightUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from flights.vietjet.service.web_service import WebService
 
 CELERY_APP = celery_util.create(GlobalVariable.RABBITMQ_USERNAME, GlobalVariable.RABBITMQ_PASSWORD)
@@ -19,7 +20,7 @@ LOG = log_util.LogUtil('hkexpressBooking')
 def _booking(self,
              booking_data: RequestBookingTaskDataModel,
              response_order_data: ResponseOrderInfoModel):
-    service = WebService(GlobalVariable.PROXY_INFO_DATA)
+    service = WebService(proxy_info_from_ext(booking_data.ext))
 
     journey_list = service.search(
         dep_airport=booking_data.dep_airport,

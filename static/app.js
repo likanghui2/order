@@ -45,6 +45,7 @@ const els = {
   taskPeopleFilter: document.getElementById("taskPeopleFilter"),
   taskStatusFilter: document.getElementById("taskStatusFilter"),
   taskResetFiltersBtn: document.getElementById("taskResetFiltersBtn"),
+  taskExportBtn: document.getElementById("taskExportBtn"),
   selectedTaskCount: document.getElementById("selectedTaskCount"),
   taskSelectAll: document.getElementById("taskSelectAll"),
   bulkPauseBtn: document.getElementById("bulkPauseBtn"),
@@ -56,11 +57,9 @@ const els = {
   detailEmpty: document.getElementById("detailEmpty"),
   detailContent: document.getElementById("detailContent"),
   attemptRows: document.getElementById("attemptRows"),
-  lastResult: document.getElementById("lastResult"),
   successCount: document.getElementById("successCount"),
   failureCount: document.getElementById("failureCount"),
   intervalInfo: document.getElementById("intervalInfo"),
-  dbInfo: document.getElementById("dbInfo"),
   tableImportPanel: document.getElementById("tableImportPanel"),
   tableImportFile: document.getElementById("tableImportFile"),
   tableImportFileName: document.getElementById("tableImportFileName"),
@@ -119,6 +118,14 @@ const REQUIRED_TASK_FIELDS = [
   { id: "currencyCode", label: "币种" },
   { id: "pnrValidMinutes", label: "PNR有效期", validate: (raw) => Boolean(positiveNumber(raw)), invalidMessage: "PNR有效期必须大于 0" },
 ];
+
+const SOURCE_PROXY_FORM_DEFAULTS = {
+  host: "proxy.iproyal.net",
+  port: 9000,
+  region: "jp",
+  sessionTime: 10,
+  format: "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}",
+};
 
 const TABLE_IMPORT_COLUMNS = [
   { key: "source", label: "Source", aliases: ["source", "数据源", "站点"] },
@@ -259,7 +266,6 @@ async function loadSources() {
 async function loadHealth() {
   state.health = await api("/api/health");
   els.health.textContent = `运行中 ${state.health.runner.running}/${runnerLimitText(state.health.runner)}`;
-  els.dbInfo.textContent = state.health.dbPath.split("/").pop();
   renderConfig();
 }
 
@@ -328,17 +334,20 @@ function renderProxyConfigs() {
 }
 
 function renderProxyConfigRow(config) {
+  const values = proxyFormValues(config);
+  const templateClass = config.configured ? "" : " proxy-template-row";
+  const prefillClass = config.configured ? "" : " proxy-prefill-input";
   return `
-    <tr data-source="${escapeHtml(config.source)}">
+    <tr class="${templateClass.trim()}" data-source="${escapeHtml(config.source)}">
       <td>${escapeHtml(config.source)}</td>
       <td><input data-proxy-field="enabled" type="checkbox" ${config.enabled ? "checked" : ""} /></td>
-      <td><input data-proxy-field="host" placeholder="127.0.0.1 或 host:port" value="${escapeAttr(config.host || "")}" /></td>
-      <td><input data-proxy-field="port" type="number" min="1" max="65535" placeholder="9000" value="${escapeAttr(config.port || "")}" /></td>
-      <td><input data-proxy-field="username" placeholder="可空" value="${escapeAttr(config.username || "")}" /></td>
-      <td><input data-proxy-field="password" type="password" placeholder="可空" value="${escapeAttr(config.password || "")}" /></td>
-      <td><input data-proxy-field="region" placeholder="hk/de/us" value="${escapeAttr(config.region || "")}" /></td>
-      <td><input data-proxy-field="sessionTime" type="number" min="1" placeholder="10" value="${escapeAttr(config.sessionTime || "")}" /></td>
-      <td><input data-proxy-field="format" placeholder="留空自动" value="${escapeAttr(config.format || "")}" /></td>
+      <td><input class="${prefillClass.trim()}" data-proxy-field="host" placeholder="127.0.0.1 或 host:port" value="${escapeAttr(values.host)}" /></td>
+      <td><input class="${prefillClass.trim()}" data-proxy-field="port" type="number" min="1" max="65535" placeholder="9000" value="${escapeAttr(values.port)}" /></td>
+      <td><input data-proxy-field="username" required placeholder="用户名" value="${escapeAttr(values.username)}" /></td>
+      <td><input data-proxy-field="password" required type="text" placeholder="密码" value="${escapeAttr(values.password)}" /></td>
+      <td><input class="${prefillClass.trim()}" data-proxy-field="region" placeholder="jp" value="${escapeAttr(values.region)}" /></td>
+      <td><input class="${prefillClass.trim()}" data-proxy-field="sessionTime" type="number" min="1" placeholder="10" value="${escapeAttr(values.sessionTime)}" /></td>
+      <td><input class="${prefillClass.trim()}" data-proxy-field="format" placeholder="必填，如 http://{host}:{port}" value="${escapeAttr(values.format)}" /></td>
       <td>
         <div class="row-actions proxy-actions">
           <button data-proxy-action="save" type="button">保存</button>
@@ -346,6 +355,25 @@ function renderProxyConfigRow(config) {
         </div>
       </td>
     </tr>`;
+}
+
+function proxyFormValues(config) {
+  if (config.configured) {
+    return {
+      host: config.host || "",
+      port: config.port || "",
+      username: config.username || "",
+      password: config.password || "",
+      region: config.region || "",
+      sessionTime: config.sessionTime || "",
+      format: config.format || "",
+    };
+  }
+  return {
+    ...SOURCE_PROXY_FORM_DEFAULTS,
+    username: "",
+    password: "",
+  };
 }
 
 function collectProxyRowPayload(row) {
@@ -360,6 +388,19 @@ function collectProxyRowPayload(row) {
     sessionTime: numberFromElement(field("sessionTime")),
     format: field("format").value.trim(),
   };
+}
+
+function validateProxyPayload(payload) {
+  if (!payload.enabled) return true;
+  if (!payload.host || payload.port === null || !payload.format) {
+    toast("启用代理时必须填写 Host、端口和 Format");
+    return false;
+  }
+  if (!payload.username || !payload.password) {
+    toast("启用代理时必须填写用户名和密码");
+    return false;
+  }
+  return true;
 }
 
 function numberFromElement(element) {
@@ -393,6 +434,7 @@ async function handleProxyAction(action, source, row) {
     toast(`${source} 代理已清空`);
   } else {
     const payload = collectProxyRowPayload(row);
+    if (!validateProxyPayload(payload)) return;
     await api(`/api/source-proxies/${encodeURIComponent(source)}`, {
       method: "PUT",
       body: JSON.stringify(payload),
@@ -447,15 +489,50 @@ async function downloadTableImportTemplate() {
     const text = await response.text();
     throw new Error(text || "模板下载失败");
   }
+  await downloadResponseBlob(response, "sham-booking-table-template.xlsx");
+}
+
+async function exportCurrentTasks() {
+  const tasks = selectableTasks();
+  if (!tasks.length) {
+    toast("没有可导出的任务");
+    return;
+  }
+  const response = await fetch("/api/tasks/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ taskIds: tasks.map((task) => task.task_id) }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "任务导出失败");
+  }
+  await downloadResponseBlob(response, exportTaskFilename());
+  toast(`已导出 ${tasks.length} 个任务`);
+}
+
+async function downloadResponseBlob(response, fallbackName) {
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "sham-booking-table-template.xlsx";
+  link.download = responseFilename(response, fallbackName);
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function responseFilename(response, fallbackName) {
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i);
+  const filename = match ? decodeURIComponent(match[1] || match[2] || "") : "";
+  return filename || fallbackName;
+}
+
+function exportTaskFilename() {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+  return `sham-booking-tasks-${stamp}.xlsx`;
 }
 
 function tableImportHeader(cells) {
@@ -692,6 +769,7 @@ function updateTaskBulkControls() {
   if (els.bulkResumeBtn) els.bulkResumeBtn.disabled = !canResume;
   if (els.bulkDeleteBtn) els.bulkDeleteBtn.disabled = selected.length === 0;
   if (els.clearTaskSelectionBtn) els.clearTaskSelectionBtn.disabled = selected.length === 0;
+  if (els.taskExportBtn) els.taskExportBtn.disabled = selectable.length === 0;
   if (els.taskSelectAll) {
     els.taskSelectAll.checked = Boolean(selectable.length) && selected.length === selectable.length;
     els.taskSelectAll.indeterminate = selected.length > 0 && selected.length < selectable.length;
@@ -1339,7 +1417,6 @@ function clearSelectedTask() {
   els.selectedTask.textContent = "未选择";
   els.detailEmpty.classList.remove("hidden");
   els.detailContent.classList.add("hidden");
-  els.lastResult.innerHTML = "";
   els.attemptRows.innerHTML = "";
   if (state.tasks.length) renderTasks();
 }
@@ -1365,7 +1442,6 @@ function renderChildTaskDetail(task) {
   els.successCount.textContent = task.success_count || 0;
   els.failureCount.textContent = task.failure_count || 0;
   els.intervalInfo.textContent = `${task.interval_seconds || "-"} 秒`;
-  setResultJson(task.last_result || {});
   renderAttempts(task.attempts || []);
 }
 
@@ -1375,18 +1451,6 @@ function renderParentTaskDetail(task) {
   els.successCount.textContent = sumBy(children, "success_count");
   els.failureCount.textContent = sumBy(children, "failure_count");
   els.intervalInfo.textContent = precheckCount ? "预检释放" : "主任务不执行";
-  setResultJson(
-    {
-      taskId: task.task_id,
-      type: "parent",
-      message: precheckCount
-        ? "主任务先执行 search 预检；匹配航班号和舱位后释放全部押位子任务。"
-        : "主任务只负责拆分子任务；真实执行和 Log 都在子任务维度。",
-      passengerRange: task.passenger_range || "-",
-      precheckCount,
-      childCount: children.length - precheckCount,
-    }
-  );
   renderChildSummaries(children);
 }
 
@@ -1442,6 +1506,7 @@ function renderAttempts(attempts) {
       const severity = attemptSeverity(attempt);
       const duration = attempt.duration_seconds ? `${attempt.duration_seconds.toFixed(2)}s` : "-";
       const finishedAt = attempt.finished_at ? formatTime(attempt.finished_at) : "-";
+      const executionTaskId = attempt.execution_task_id || attempt.executionTaskId || attempt.task_id || "-";
       return `
         <div class="attempt-item ${severity}">
           <div class="attempt-item-head">
@@ -1450,6 +1515,7 @@ function renderAttempts(attempts) {
           </div>
           <div class="attempt-message log-message ${severity}">${escapeHtml(`${prefix} ${attempt.message || "-"}`)}</div>
           <div class="attempt-meta">
+            <span title="${escapeAttr(executionTaskId)}">任务ID ${escapeHtml(abbreviateTaskId(executionTaskId))}</span>
             <span>耗时 ${escapeHtml(duration)}</span>
             <span>${escapeHtml(finishedAt)}</span>
           </div>
@@ -1595,24 +1661,6 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value);
-}
-
-function setResultJson(value) {
-  const text = JSON.stringify(value || {}, null, 2);
-  els.lastResult.innerHTML = syntaxHighlightJson(text);
-}
-
-function syntaxHighlightJson(text) {
-  return escapeHtml(text).replace(
-    /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
-    (match) => {
-      let cls = "json-number";
-      if (match.startsWith('"')) cls = match.endsWith(":") ? "json-key" : "json-string";
-      else if (match === "true" || match === "false") cls = "json-boolean";
-      else if (match === "null") cls = "json-null";
-      return `<span class="${cls}">${match}</span>`;
-    },
-  );
 }
 
 function attemptSeverity(attempt) {
@@ -1777,6 +1825,7 @@ function bindEvents() {
     const element = $(field.id);
     if (element) element.addEventListener(element.tagName === "SELECT" ? "change" : "input", () => clearTaskFieldInvalid(field.id));
   });
+  els.taskExportBtn.addEventListener("click", () => exportCurrentTasks().catch(showError));
   els.tableImportTemplateBtn.addEventListener("click", () => downloadTableImportTemplate().catch(showError));
   els.tableImportParseBtn.addEventListener("click", () => parseTableImport(true).catch(showError));
   els.tableImportSubmitBtn.addEventListener("click", () => submitTableImport().catch(showError));
@@ -1883,6 +1932,10 @@ function bindEvents() {
     if (!button) return;
     const row = button.closest("tr[data-source]");
     handleProxyAction(button.dataset.proxyAction, row.dataset.source, row).catch(showError);
+  });
+  els.sourceProxyRows.addEventListener("input", (event) => {
+    const input = event.target.closest("input.proxy-prefill-input");
+    if (input) input.classList.remove("proxy-prefill-input");
   });
 }
 

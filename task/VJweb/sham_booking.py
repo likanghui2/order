@@ -11,6 +11,7 @@ from common.model.task.request_sham_booking_task_data_model import RequestShamBo
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util, machine_cache_util
 from common.utils.flight_util import FlightUtil
+from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.sham_booking_util import ShamBookingUtil
 from common.utils.string_util import StringUtil
 from flights.vietjet.service.web_service import WebService
@@ -95,7 +96,7 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
         attempt_no = 1
         script_cache = CACHE.get_data()
         if script_cache is None:
-            service = WebService(GlobalVariable.PROXY_INFO_DATA)
+            service = WebService(proxy_info_from_ext(sham_booking_data.ext))
         else:
             service = script_cache['value']
         try:
@@ -142,26 +143,27 @@ if __name__ == '__main__':
     for i in range(10000000000):
         try:
             task_data = {
-                "taskId": "be05b93d2ffd4bdf93a7fb413c866b71",
+                "taskId": "VJAPP-SGN-CAN-VJ3908-20260625-44411-P1",
+                "source": "VJAPP",
                 "taskType": "shamBooking",
-                "source": "VJWEB",
                 "taskData": {
-                    "depAirport": "PVG",
-                    "arrAirport": "SGN",
-                    "depDate": "20260625",
-                    "flightNumber": "VJ3901",
-                    "cabin": "",
+                    "depAirport": "SGN",
+                    "arrAirport": "CAN",
+                    "depDate": "20260725",
+                    "flightNumber": "VJ3908",
+                    "cabin": "J",
                     "bookingConfig": {
-                        "bookRate": 10,
+                        "bookRate": 2,
                         "currencyCode": "VND"
+                    },
+                    "ext": {
+                        "usePassport": True,
+                        "pnrValidMinutes": 30,
+                        "passengerCount": 1
                     },
                     "callbackData": {
                         "callData": "",
-                        "callUrl": "http://trip-api.bjrakd.com/triplex-foreign-external/external/task/pressureback/seatNewCallback"
-                    },
-                    'ext': {
-                        "usePassport": True,
-                        "passengerCount": 1
+                        "callUrl": ""
                     }
                 }
             }
