@@ -9,6 +9,10 @@ PORT="${PORT:-8018}"
 PYTHON_BIN="${PYTHON_BIN:-$(pwd)/.venv/bin/python}"
 RELOAD="${RELOAD:-1}"
 RELOAD_DIRS="${RELOAD_DIRS:-app,static,task}"
+LOCAL_SHAM_LOG_TO_FILE="${LOCAL_SHAM_LOG_TO_FILE:-1}"
+LOCAL_SHAM_LOG_FILE="${LOCAL_SHAM_LOG_FILE:-$(pwd)/logs/local-sham.log}"
+export VJ_WEB_SESSION_CACHE_URL="${VJ_WEB_SESSION_CACHE_URL:-http://127.0.0.1:${PORT}/api/vj-web-session}"
+export OUTPUT_HTTP_LOG="false"
 
 if [ ! -x "$PYTHON_BIN" ]; then
   PYTHON_BIN="$(command -v python3 || command -v python)"
@@ -19,6 +23,11 @@ if ! "$PYTHON_BIN" -m uvicorn --version >/dev/null 2>&1; then
   echo "  cd $(pwd)"
   echo "  $PYTHON_BIN -m pip install -r requirements-local.txt"
   exit 1
+fi
+
+if [ "$LOCAL_SHAM_LOG_TO_FILE" != "0" ] && [ "$LOCAL_SHAM_LOG_TO_FILE" != "false" ] && [ "$LOCAL_SHAM_LOG_TO_FILE" != "FALSE" ]; then
+  mkdir -p "$(dirname "$LOCAL_SHAM_LOG_FILE")"
+  exec > >(tee -a "$LOCAL_SHAM_LOG_FILE") 2>&1
 fi
 
 UVICORN_ARGS=(app.api:app --host "$HOST" --port "$PORT")

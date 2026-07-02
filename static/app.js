@@ -114,7 +114,6 @@ const REQUIRED_TASK_FIELDS = [
   { id: "arrAirport", label: "目的地" },
   { id: "depDate", label: "日期", validate: (raw) => /^\d{8}$/.test(normalizeDate(raw)), invalidMessage: "日期格式应为 YYYY-MM-DD 或 YYYYMMDD" },
   { id: "flightNumber", label: "航班号" },
-  { id: "cabin", label: "舱位" },
   { id: "currencyCode", label: "币种" },
   { id: "pnrValidMinutes", label: "PNR有效期", validate: (raw) => Boolean(positiveNumber(raw)), invalidMessage: "PNR有效期必须大于 0" },
 ];
@@ -627,7 +626,6 @@ function validateTableImportPayload(payload, raw) {
   if (!taskData.arrAirport) errors.push("缺少目的地");
   if (!/^\d{8}$/.test(taskData.depDate || "")) errors.push("日期格式错误");
   if (!taskData.flightNumber) errors.push("缺少航班号");
-  if (!taskData.cabin) errors.push("缺少舱位");
   if (!payload.intervalSeconds || payload.intervalSeconds <= 0) errors.push("查询延迟无效");
   if (!taskData.bookingConfig?.bookRate || taskData.bookingConfig.bookRate <= 0) errors.push("预计延迟无效");
   if (!taskData.bookingConfig?.currencyCode) errors.push("缺少币种");

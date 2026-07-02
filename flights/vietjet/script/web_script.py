@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import os
 import random
 import re
 import string
@@ -52,6 +53,7 @@ class WebScript:
         self.__log = log_util.LogUtil('vietjetWebScript')
         self.__vj_device_uuid = str(uuid4())
         self.__zero_trust_config = None
+        self.x_session_id = None
         self.__danli_unlock = DanliUnlockTls("7j58fx77bifxt2jhx01pwoek7asgp6xm", site="vietjetair",
                                              auth_manage_cookie=False)
         self.__danli_unlock.initialize(proxy_info_data=self.__proxy)
@@ -354,6 +356,71 @@ class WebScript:
     # @retry_decorator(
     #     [(ServiceStateEnum.ROBOT_CHECK, token_macie), (ServiceStateEnum.AWS_CHECK_FAILURE, token_macie),
     #      (ServiceStateEnum.CURL_EXCEPTION, token_macie)])
+    def get_seesion(self, request_id, departure_place, arrival):
+        if not self.__aws_token:
+            self.token_macie()
+        headers = {
+            'accept': 'application/json',
+            'accept-language': 'zh-cn',
+            'cache-control': 'no-cache',
+            'content-language': 'zh-cn',
+            'content-type': 'application/json',
+            'origin': 'https://www.vietjetair.com',
+            'pragma': 'no-cache',
+            'priority': 'u=1, i',
+            'referer': 'https://www.vietjetair.com/',
+            'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+            'user-agent': self.__ua,
+            "X-Aws-Waf-Token": self.__aws_token,
+            "X-Session-Id": self.x_session_id or "null",
+        }
+        headers.update(self.zero_trust_headers('/booking/api/v1/get-session'))
+        params = {
+            "currency": "vnd",
+            "adultCount": 1,
+            "childCount": 0,
+            "infantCount": 0,
+            "departurePlace": departure_place,
+            "arrival": arrival,
+            "requestId": request_id,
+        }
+        response = self.__http_utils.post(
+            url=f'https://vietjet-api.vietjetair.com/booking/api/v1/get-session?requestId={request_id}',
+            headers=headers,
+            data=params,
+            timeout=self.__timeout
+        )
+        if response.status in [202, 201]:
+            raise ServiceError(ServiceStateEnum.AWS_CHECK_FAILURE)
+        if response.status != 200:
+            if response.status == 403:
+                raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
+            raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY, response.status)
+        response_data = response.to_dict()
+        self.x_session_id = response_data["sessionId"]
+        return self.x_session_id
+
+    def get_seesion_cached(self, departure_place, arrival):
+        params = {
+            "depAirport": departure_place,
+            "arrAirport": arrival
+        }
+
+        response = requests.get(url="http://127.0.0.1:8018/api/vj-web-session", params=params, verify=False)
+        response_json = response.json()
+        if response.status_code == 200:
+            session_data = response_json["data"]
+            self.x_session_id = session_data["sessionId"]
+            self.__vj_device_uuid = session_data["deviceUuid"]
+            self.__zero_trust_config = tuple(session_data["zeroTrustConfig"])
+            return self.x_session_id
+        return None
+
     def search_flight(self, data):
         if not self.__aws_token:
             self.token_macie()
@@ -375,22 +442,25 @@ class WebScript:
             'sec-fetch-site': 'same-site',
             'user-agent': self.__ua,
             "X-Aws-Waf-Token": self.__aws_token,
+            "X-Session-Id": self.x_session_id,
         }
         headers.update(self.zero_trust_headers('/booking/api/v1/search-flight'))
         params = {"encrypted": data}
         response = self.__http_utils.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/search-flight',
                                            headers=headers, data=params, timeout=self.__timeout)
 
+        if response.status == 403:
+            raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
         if response.status in [202, 201]:
             raise ServiceError(ServiceStateEnum.AWS_CHECK_FAILURE)
         if response.status == 405 or response.to_dict().get('travelOptions') or response.to_dict() == {}:
             raise ServiceError(ServiceStateEnum.AWS_CHECK_FAILURE)
         if response.status != 200:
-            if response.status == 403:
-                raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
             raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY,
                                response.status)
-        return response.to_dict()
+        response_data = response.to_dict()
+        self.x_session_id = response_data.get("sessionId") or self.x_session_id
+        return response_data
 
     @retry_decorator(
         [(ServiceStateEnum.CURL_EXCEPTION, reset_proxy_ip),
@@ -723,31 +793,50 @@ class WebScript:
             )
             if response.status == 403:
                 raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
-            if response.status == 429:
-                retry_after = response.headers.get("Retry-After", 15)
-                try:
-                    retry_after = int(float(retry_after))
-                except (TypeError, ValueError):
-                    retry_after = 15
-                wait_seconds = retry_after + random.uniform(1, 3)
+            if response.status in [429, 503]:
+                # retry_after = response.headers.get("Retry-After", 15)
+                # try:
+                #     retry_after = int(float(retry_after))
+                # except (TypeError, ValueError):
+                #     retry_after = 15
+                # wait_seconds = retry_after + random.uniform(1, 3)
                 wait_seconds = random.uniform(1, 3)
                 self.__log.info(f"reservations触发限速，等待[{wait_seconds:.1f}]秒后重试")
                 time.sleep(wait_seconds)
                 raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
             if response.status == 401:
                 raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "Invalid authorization")
-            response_data = response.to_dict()
+            try:
+                response_data = response.to_dict()
+            except Exception as exc:
+                self.__log.error(
+                    f"reservations响应非JSON，status[{response.status}]，url[{url}]，"
+                    f"body[{response.to_text()[:1000]}]，error[{exc}]"
+                )
+                raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY,
+                                   response.status)
             response_detail = response_data.get("detail") or {}
-            error_key = response_detail.get("errorKey") or response_data.get("errorKey")
-            if response.status == 400 and error_key == "LIMIT_PAYLATER_BOOKING":
-                raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "达到最大占位限制")
-            if response.status == 400 and error_key == "FARE_OR_SEAT_NOT_AVAILABLE":
-                raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "抢位失败")
-            if response.status == 400 and response_data.get("message"):
+            if type(response_detail) == dict:
+                error_key = response_detail.get("errorKey") or response_data.get("errorKey")
+                if response.status == 400 and error_key == "LIMIT_PAYLATER_BOOKING":
+                    raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "达到最大占位限制")
+                if response.status == 400 and error_key == "FARE_OR_SEAT_NOT_AVAILABLE":
+                    raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "抢位失败")
+                if response.status == 400 and response_data.get("message"):
+                    raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, response_data.get("message"))
+            else:
                 raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, response_data.get("message"))
+
             raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY,
                                response.status)
-        return response.to_dict()
+        try:
+            return response.to_dict()
+        except Exception as exc:
+            self.__log.error(
+                f"reservations成功状态但响应非JSON，status[{response.status}]，url[{url}]，"
+                f"body[{response.to_text()[:1000]}]，error[{exc}]"
+            )
+            raise ServiceError(ServiceStateEnum.API_RESPONSE_FAILED)
 
     @staticmethod
     def _galaxy_traceparent():

@@ -129,5 +129,19 @@ if __name__ == "__main__":
                     "bookRate": 10,
                     "currencyCode": "IDR",
                 },
+                'ext': {
+                    "proxy": {
+                        "source": "VJAPP",
+                        "configured": False,
+                        "host": "proxy.iproyal.net",
+                        "port": 9000,
+                        "username": "xiaohao1",
+                        "password": "lvwei8214786",
+                        "region": "jp",
+                        "sessId": None,
+                        "sessionTime": 10,
+                        "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
+                    }
+                }
             },
         })

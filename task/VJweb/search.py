@@ -16,6 +16,7 @@ def _search(self, search_data: RequestSearchTaskDataModel):
     script_cache = CACHE.get_data()
     if script_cache is None:
         service = WebService(proxy_info_from_ext(search_data.ext))
+        service.get_seesion(departure_place=search_data.dep_airport,arrival=search_data.arr_airport)
     else:
         service = script_cache['value']
 
@@ -27,7 +28,7 @@ def _search(self, search_data: RequestSearchTaskDataModel):
             chd_number=search_data.child_number,
             infant_count=0,
             currency_code=search_data.currency_code,
-            ret_date=search_data.ret_date
+            ret_date=search_data.ret_date, is_hold=True
         )
     if script_cache is None:
         CACHE.set_data(service, 280)
@@ -66,6 +67,23 @@ if __name__ == '__main__':
                 "retDate": "",
                 "adultNumber": 1,
                 "childNumber": 0,
-                "currencyCode": "USD"
+                "currencyCode": "USD",
+                    'ext': {
+                        "usePassport": True,
+                        "pnrValidMinutes": 30,
+                        "passengerCount": 9,
+                        "proxy": {
+                            "source": "VJAPP",
+                            "configured": False,
+                            "host": "proxy.iproyal.net",
+                            "port": 9000,
+                            "username": "xiaohao1",
+                            "password": "lvwei8214786",
+                            "region": "SG",
+                            "sessId": None,
+                            "sessionTime": 10,
+                            "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
+                        }
+                    }
             }
         })

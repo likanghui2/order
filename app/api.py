@@ -17,6 +17,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from tools import vj_web_session_server
+from tools.vj_web_session_server import get_vj_session
 from .runner import LocalRunner
 from .source_registry import module_for_source, normalize_source, supported_sources
 from .store import ACTIVE, DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT, TaskStore
@@ -76,9 +78,13 @@ runner = LocalRunner(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    vj_web_session_server._start_warmer()
     runner.start()
-    yield
-    runner.stop()
+    try:
+        yield
+    finally:
+        runner.stop()
+        vj_web_session_server._stop_warmer()
 
 
 app = FastAPI(title="Local Sham Booking", lifespan=lifespan)
@@ -134,6 +140,19 @@ def save_source_proxy(source: str, request: SourceProxyPayload):
 def delete_source_proxy(source: str):
     normalized = normalize_source(source)
     return _proxy_response(store.delete_source_proxy_config(normalized))
+
+
+@app.get("/api/vj-web-session")
+def get_vj_web_session(
+    dep_airport: str = Query(..., alias="depAirport"),
+    arr_airport: str = Query(..., alias="arrAirport"),
+):
+    departure_place = _clean_optional(dep_airport).upper()
+    arrival = _clean_optional(arr_airport).upper()
+    if not departure_place or not arrival:
+        raise HTTPException(status_code=400, detail="depAirport/arrAirport 不能为空")
+
+    return get_vj_session(dep_airport=departure_place, arr_airport=arrival)
 
 
 @app.get("/api/tasks")
@@ -408,7 +427,6 @@ def _validate_required_task_fields(task_data: dict[str, Any]) -> None:
         (task_data.get("arrAirport"), "目的地"),
         (task_data.get("depDate"), "日期"),
         (task_data.get("flightNumber"), "航班号"),
-        (task_data.get("cabin"), "舱位"),
         (booking_config.get("currencyCode"), "币种"),
     ]
     missing = [label for value, label in required if not _clean_optional(value)]

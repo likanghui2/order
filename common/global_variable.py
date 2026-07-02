@@ -15,6 +15,14 @@ _ENV_STRING = os.environ.get("ENV")
 _ENV_INT =  "DEV"
 # 生产环境，禁止print输出
 
+
+def _env_bool(name: str, default: bool = True) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"", "0", "false", "no", "off"}
+
+
 if _ENV_STRING == "DEV" or _ENV_STRING is None:
     os.environ.setdefault("RABBITMQ_HOST", '127.0.0.1')
     os.environ.setdefault("RABBITMQ_PORT", '5672')
@@ -79,4 +87,4 @@ class GlobalVariable:
     REDIS_TASK_RESULT_DB = 0
     REDIS_USERNAME = os.environ.get("REDIS_USERNAME")
     REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD")  # redis password
-    OUTPUT_HTTP_LOG = bool(os.environ.get("OUTPUT_HTTP_LOG")) if os.environ.get("OUTPUT_HTTP_LOG") else True
+    OUTPUT_HTTP_LOG = _env_bool("OUTPUT_HTTP_LOG", True)

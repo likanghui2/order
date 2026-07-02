@@ -44,6 +44,11 @@ PORT=8018
 LOCAL_SHAM_DB=/Users/a1234/Desktop/rakdFlightLocalShamBooking/local_sham_booking.db
 LOCAL_SHAM_CONCURRENCY=0
 LOCAL_SHAM_POLL_INTERVAL=0.5
+LOCAL_SHAM_LOG_TO_FILE=1
+VJ_WEB_SESSION_CACHE_ENABLED=1
+VJ_WEB_SESSION_READY_SECONDS=120
+VJ_WEB_SESSION_CACHE_TTL_SECONDS=300
+VJ_WEB_SESSION_CACHE_MAX_SIZE=80
 PYTHON_BIN=/Users/a1234/Desktop/rakdFlightLocalShamBooking/.venv/bin/python
 RELOAD=1
 RELOAD_DIRS=app,static,task
@@ -51,6 +56,67 @@ RELOAD_DIRS=app,static,task
 
 `LOCAL_SHAM_CONCURRENCY=0` 表示不限制本地并发；设置为 `3`、`5` 等正整数时，才会限制同时执行数量。
 `RELOAD=1` 表示开启热更新，默认监听 `app`、`static` 和 `task`；如需关闭，用 `RELOAD=0 /bin/bash run-local-sham.sh`。
+`LOCAL_SHAM_LOG_TO_FILE=1` 会把本地服务 stdout/stderr 追加写入 `logs/local-sham.log`，供 Grafana Loki 采集；如需关闭，用 `LOCAL_SHAM_LOG_TO_FILE=0`。
+
+## VietJet Web Session 预热
+
+VJWEB session 池独立于主押位链路。预热进程会提前调用 VietJet `get-session`，把 `sessionId`、`requestId`、`sessionExpIn` 和设备绑定参数写入 Redis；代理不写入缓存、不在进程间传输。主框架不自动消费缓存，需要时调用接口取 ready session。
+
+```bash
+.venv/bin/python tools/vj_session_cache_warmer.py
+```
+
+航线和数量直接改脚本顶部配置：
+
+```python
+SOURCE = "VJWEB"
+ROUTES = []
+TARGET_SIZE = 10
+INTERVAL_SECONDS = 2
+RUN_ONCE = False
+```
+
+`ROUTES = []` 时会从本地 SQLite 的任务里读取航线；想固定航线时再改成 `["SGN-CAN"]` 这种形式。
+
+取 session 接口：
+
+```text
+GET /api/vj-web-session?depAirport=SGN&arrAirport=CAN
+```
+
+取不到 ready session 时接口直接返回 404，并带上当前池子的 `ready/warming/expired` 统计。
+
+常用参数：
+
+- `VJ_WEB_SESSION_READY_SECONDS=120`：session 预热多久后接口可取。
+- `VJ_WEB_SESSION_CACHE_TTL_SECONDS=300`：航司未返回 `sessionExpIn` 时的兜底保留时间；正常优先使用 `sessionExpIn` 作为过期时间。
+- `VJ_WEB_SESSION_CACHE_MAX_SIZE=80`：每条航线最多缓存多少个。
+- `VJ_WEB_SESSION_CACHE_ENABLED=0`：关闭 session 池读写。
+
+## 技术日志排查
+
+技术排查独立使用 Grafana Loki，不和业务页面混在一起。先启动业务服务，让日志写入 `logs/local-sham.log`，再启动日志栈：
+
+```bash
+/bin/bash /Users/a1234/Desktop/rakdFlightLocalShamBooking/run-loki-logs.sh
+```
+
+启动前需要先打开 Docker Desktop。
+
+默认地址：
+
+```text
+http://localhost:3000/d/sl-booking-logs
+```
+
+Grafana 已预置 Loki 数据源和 `SL Booking 技术日志` Dashboard。常用 LogQL：
+
+```logql
+{job="sl-booking"} | json
+{job="sl-booking"} | json | level="ERROR"
+{job="sl-booking"} | json | taskId="VJAPP-SGN-CAN-VJ3908-20260729-24704"
+{job="sl-booking"} | json | executionTaskId="VJAPP-SGN-CAN-VJ3908-20260729-24704-RUN0001"
+```
 
 ## SQLite 损坏处理
 

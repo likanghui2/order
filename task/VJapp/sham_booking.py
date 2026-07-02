@@ -371,23 +371,35 @@ def _build_demo_task_data():
         "source": "VJAPP",
         "taskType": "shamBooking",
         "taskData": {
-            "depAirport": "SGN",
-            "arrAirport": "PVG",
-            "depDate": "20260826",
-            "flightNumber": "VJ3900",
-            "cabin": "U",
+            "depAirport": "HAN",
+            "arrAirport": "CAN",
+            "depDate": "20260725",
+            "flightNumber": "VJ7526",
+            "cabin": "",
             "bookingConfig": {
                 "bookRate": 2,
                 "currencyCode": "VND"
             },
-            "ext": {
-                "usePassport": True,
-                "pnrValidMinutes": 30,
-                "passengerCount": 1
-            },
             "callbackData": {
                 "callData": "",
                 "callUrl": ""
+            },
+            'ext': {
+                "usePassport": True,
+                "pnrValidMinutes": 30,
+                "passengerCount": 1,
+                "proxy": {
+                    "source": "VJAPP",
+                    "configured": False,
+                    "host": "proxy.iproyal.net",
+                    "port": 9000,
+                    "username": "xiaohao1",
+                    "password": "lvwei8214786",
+                    "region": "jp",
+                    "sessId": None,
+                    "sessionTime": 10,
+                    "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
+                }
             }
         }
     }

@@ -48,6 +48,13 @@ class WebService:
         request_id = f"{rnd}-{now}"
         return request_id
 
+    def get_seesion_cached(self, departure_place, arrival):
+        return self.__web_script.get_seesion_cached(departure_place, arrival)
+
+    def get_seesion(self, departure_place, arrival):
+        request_id = self.request_id_get()
+        return self.__web_script.get_seesion(request_id, departure_place, arrival)
+
     def search(self,
                dep_airport: str,
                arr_airport: str,
@@ -80,7 +87,7 @@ class WebService:
             "daysBeforeReturn": 0,
             "daysAfterReturn": 0,
             "requestId": request_id,
-            "sessionId": None,
+            "sessionId": self.__web_script.x_session_id,
             "user-agent-ls-data": self.__t["user-agent-ls-data"],
             "x-power-web-s-d": self.__t["x-power-web-s-d"],
         }

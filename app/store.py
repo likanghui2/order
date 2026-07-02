@@ -12,7 +12,7 @@ PAUSED = "PAUSED"
 STOPPED = "STOPPED"
 DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT = 20
 SETTING_PRECHECK_RESOURCE_MISS_LIMIT = "precheck_resource_miss_limit"
-PRECHECK_RESOURCE_MISS_REASONS = {"flightNotFound", "cabinNotFound"}
+PRECHECK_RESOURCE_MISS_REASONS = {"flightNotFound", "cabinNotFound", "noFlightData"}
 PRECHECK_IGNORED_MISS_REASONS = {"searchFailed"}
 
 
@@ -1024,22 +1024,31 @@ def _is_precheck_controlled_child(row: sqlite3.Row) -> bool:
 def _search_precheck_result(result: Any, task_data: dict[str, Any]) -> dict[str, Any]:
     result_data = _as_dict(result)
     if _safe_int(result_data.get("status")) != 200:
+        message = str(result_data.get("message") or "预检查询失败")
+        if "无航班数据" in message:
+            return {
+                "matched": False,
+                "reason": "noFlightData",
+                "flightNumber": task_data.get("flightNumber") or "",
+                "cabin": task_data.get("cabin") or "",
+                "message": message,
+            }
         return {
             "matched": False,
             "reason": "searchFailed",
             "flightNumber": task_data.get("flightNumber") or "",
             "cabin": task_data.get("cabin") or "",
-            "message": str(result_data.get("message") or "预检查询失败"),
+            "message": message,
         }
     target_flight_number = _normalize_match_text(task_data.get("flightNumber"))
     target_cabin = _normalize_cabin_for_precheck(task_data.get("cabin"))
-    if not target_flight_number or not target_cabin:
+    if not target_flight_number:
         return {
             "matched": False,
             "reason": "missingTarget",
             "flightNumber": target_flight_number,
             "cabin": target_cabin,
-            "message": "缺少目标航班号或舱位",
+            "message": "缺少目标航班号",
         }
 
     data = _as_dict(result_data.get("data"))
@@ -1051,7 +1060,18 @@ def _search_precheck_result(result: Any, task_data: dict[str, Any]) -> dict[str,
         if not _journey_has_flight_number(journey_data, target_flight_number):
             continue
         flight_found = True
-        available_cabins.extend(_journey_cabin_candidates(journey_data))
+        journey_cabins = _journey_cabin_candidates(journey_data)
+        available_cabins.extend(journey_cabins)
+        if not target_cabin:
+            cabin_display = journey_cabins[0] if journey_cabins else "当前舱位"
+            return {
+                "matched": True,
+                "reason": "matched",
+                "flightNumber": target_flight_number,
+                "cabin": cabin_display,
+                "cabinDisplay": cabin_display,
+                "message": "匹配成功",
+            }
         matched_cabin = _journey_cabin_match_label(journey_data, target_cabin)
         if matched_cabin:
             return {

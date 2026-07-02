@@ -37,6 +37,15 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
     def _search_and_validate(web_service, adult_count):
         # web_service.initialize_session()
 
+        if web_service.get_seesion_cached(
+                departure_place=sham_booking_data.dep_airport,
+                arrival=sham_booking_data.arr_airport,
+        ):
+            LOG.info(f'已缓存会话')
+        else:
+            LOG.info(f'开始缓存会话')
+            web_service.get_seesion(departure_place=sham_booking_data.dep_airport,
+                                    arrival=sham_booking_data.arr_airport, )
         journey_list = web_service.search(
             dep_airport=sham_booking_data.dep_airport,
             arr_airport=sham_booking_data.arr_airport,
@@ -140,30 +149,42 @@ def main(self, sham_booking_data: RequestShamBookingTaskDataModel, response_orde
 
 if __name__ == '__main__':
     aa = []
-    for i in range(10000000000):
+    for i in range(1):
         try:
             task_data = {
                 "taskId": "VJAPP-SGN-CAN-VJ3908-20260625-44411-P1",
                 "source": "VJAPP",
                 "taskType": "shamBooking",
                 "taskData": {
-                    "depAirport": "SGN",
-                    "arrAirport": "CAN",
-                    "depDate": "20260725",
-                    "flightNumber": "VJ3908",
-                    "cabin": "J",
+                    "depAirport": "HAN",
+                    "arrAirport": "SGN",
+                    "depDate": "20260729",
+                    "flightNumber": "VJ159",
+                    "cabin": "",
                     "bookingConfig": {
                         "bookRate": 2,
                         "currencyCode": "VND"
                     },
-                    "ext": {
-                        "usePassport": True,
-                        "pnrValidMinutes": 30,
-                        "passengerCount": 1
-                    },
                     "callbackData": {
                         "callData": "",
                         "callUrl": ""
+                    },
+                    'ext': {
+                        "usePassport": True,
+                        "pnrValidMinutes": 30,
+                        "passengerCount": 1,
+                        "proxy": {
+                            "source": "VJAPP",
+                            "configured": False,
+                            "host": "proxy.iproyal.net",
+                            "port": 9000,
+                            "username": "xiaohao1",
+                            "password": "lvwei8214786",
+                            "region": "SG",
+                            "sessId": None,
+                            "sessionTime": 10,
+                            "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
+                        }
                     }
                 }
             }
