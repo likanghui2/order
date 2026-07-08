@@ -13,6 +13,7 @@ from common.decorators.retry_decorator import retry_decorator
 from common.errors.service_error import ServiceError, ServiceStateEnum
 from common.model.proxy_Info_model import ProxyInfoModel
 from common.tls.curl_cffi_tls import CurlCffiTls
+from common.utils.string_util import StringUtil
 
 
 class VZWebScript:
@@ -22,7 +23,12 @@ class VZWebScript:
     def __init__(self, proxy_info: Optional[ProxyInfoModel] = None):
         self.__http_utils = CurlCffiTls()
         self.__proxy = proxy_info
-        self.__http_utils.initialize(proxy_info_data=proxy_info)
+        random_impersonate = random.choice(
+            ["chrome119", "chrome120", "chrome123", "chrome131_android",
+             "safari155", "safari153", "safari180",
+             "firefox133", 'tor145', "safari", "safari_ios"])
+
+        self.__http_utils.initialize(proxy_info_data=proxy_info, impersonate=random_impersonate)
         self.__timeout = 30
         self.__ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:150.0) Gecko/20100101 Firefox/150.0"
         self.csrf_token = None
@@ -445,11 +451,11 @@ class VZWebScript:
 
     @retry_decorator([(ServiceStateEnum.CURL_EXCEPTION, reset_proxy_ip),
                       (ServiceStateEnum.HTTP_TIMEOUT, reset_proxy_ip)])
-    def do_payment(self, booking_code: str, recaptcha_token: str, funcoin_config: dict):
+    def do_payment(self, booking_code: str, recaptcha_token: str, funcoin_config: dict, payment_group: str):
         self.ensure_csrf_token()
         data = {
             "code": booking_code,
-            "payment-group": "PL",
+            "payment-group": payment_group,
             "g-recaptcha-response": recaptcha_token,
             "applyVoucher": "false",
             "funcoin_selected[using_money]": 0,
@@ -488,13 +494,43 @@ class VZWebScript:
         return re.findall(r'name="([a-f0-9]{40})"', html or "")
 
     @staticmethod
-    def parse_payment_data(html: str):
+    def __parse_funcoin_limit(payment_html: str) -> str:
+        funcoin_config_text = StringUtil.extract_between(
+            payment_html, "var _FUNCOIN_CONFIG =", "var _CREDIT_CONFIG"
+        )
+        if not funcoin_config_text:
+            return "0"
+        funcoin_config_text = funcoin_config_text.strip().split(';', 1)[0]
+        funcoin_config = json.loads(funcoin_config_text)
+        return str(funcoin_config.get('funcoin_limit', '0'))
+
+    def later_parse_payment_data(self, html: str, is_today: bool = False):
         methods_match = re.search(r"var\s+_PAYMENT_METHODs\s*=\s*(\[.*?\]);", html or "", re.S)
         funcoin_match = re.search(r"var\s+_FUNCOIN_CONFIG\s*=\s*(\{.*?\});", html or "", re.S)
         if not methods_match:
             raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "VZ payment method config not found")
         methods = json.loads(methods_match.group(1))
         funcoin_config = json.loads(funcoin_match.group(1)) if funcoin_match else {}
+        if is_today:
+            free_key_data = json.loads(
+                StringUtil.extract_between(html, "var _PAYMENT_METHODs =", "var _PAYMENT_GROUPs").strip().rstrip(
+                    ';'))
+            funcoin_limit = self.__parse_funcoin_limit(html)
+
+            card_key_data = [i for i in free_key_data if i['name'] == 'Credit Card' or i['name'] == 'Global Card'][0]
+            card_key_data['_funcoin_limit'] = funcoin_limit
+            gateway = card_key_data.get("gateways")[0]
+            config = card_key_data.get("amelia_payment_config")
+
+            return {
+                "group": "PL30",
+                "identifier": config.get("identifier"),
+                "key": config.get("key"),
+                "gateway": gateway.get("gateway"),
+                "code": gateway.get("code"),
+                "fee": 0,
+                "total": "",
+            }, funcoin_config
         pay_later_method = next(
             (method for method in methods if method.get("amelia_payment_identifier") == "PL"),
             None,

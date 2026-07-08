@@ -446,7 +446,7 @@ class WebScript:
         }
         headers.update(self.zero_trust_headers('/booking/api/v1/search-flight'))
         params = {"encrypted": data}
-        response = self.__http_utils.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/search-flight',
+        response = self.__danli_unlock.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/search-flight',
                                            headers=headers, data=params, timeout=self.__timeout)
 
         if response.status == 403:
@@ -771,6 +771,7 @@ class WebScript:
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
             'user-agent': self.__ua,
+            "X-Session-Id":self.x_session_id
             # "Authorization": f"Bearer {authorization}" if authorization else "",
             # "X-Aws-Waf-Token": self.__aws_token,
         }
@@ -791,9 +792,9 @@ class WebScript:
                 f"reservations请求失败，status[{response.status}]，url[{url}]，"
                 f"headers[{dict(response.headers)}]，body[{response.to_text()[:1000]}]"
             )
-            if response.status == 403:
-                raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
-            if response.status in [429, 503]:
+            # if response.status == 403:
+            #     raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
+            if response.status in [429, 503, 403]:
                 # retry_after = response.headers.get("Retry-After", 15)
                 # try:
                 #     retry_after = int(float(retry_after))
@@ -801,7 +802,7 @@ class WebScript:
                 #     retry_after = 15
                 # wait_seconds = retry_after + random.uniform(1, 3)
                 wait_seconds = random.uniform(1, 3)
-                self.__log.info(f"reservations触发限速，等待[{wait_seconds:.1f}]秒后重试")
+                self.__log.info(f"reservations触发限速{response.status}，等待[{wait_seconds:.1f}]秒后重试")
                 time.sleep(wait_seconds)
                 raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
             if response.status == 401:

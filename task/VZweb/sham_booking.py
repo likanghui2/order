@@ -28,8 +28,8 @@ def _sham_booking(self,
                   response_order_data: ResponseOrderInfoModel):
     dep_date = datetime.strptime(sham_booking_data.dep_date, "%Y%m%d").strftime("%Y-%m-%d")
     currency_code = sham_booking_data.booking_config.currency_code
-    target_cabin = sham_booking_data.cabin or ""
-
+    target_cabin = sham_booking_data.cabin
+    is_today = sham_booking_data.ext['usePassport']
     def _search_and_validate(web_service, adult_count):
         journey_list = web_service.search(
             dep_airport=sham_booking_data.dep_airport,
@@ -52,14 +52,14 @@ def _sham_booking(self,
             raise ServiceError(ServiceStateEnum.NO_AVAILABLE_CABIN, target_cabin, current_bundle.cabin)
         return journey, current_bundle
 
-    def _booking(web_service, journey, passengers, booking_bundle, order_data):
+    def _booking(web_service, journey, passengers, booking_bundle, order_data, is_today):
         later_response, _ = web_service.booking(
             journey=journey,
             passenger_infos=passengers,
             contact_info=copy.deepcopy(contact_info),
             use_bundle=booking_bundle,
             response_order_data=order_data,
-            need_pay=False,
+            need_pay=False,is_today=is_today
         )
         reservation = later_response.get("reservation") or {}
         pnr = reservation.get("locator") or StringUtil.generate_random_string(7)
@@ -120,7 +120,7 @@ def _sham_booking(self,
                 else:
                     CACHE.set_data(script_cache["value"], None, script_cache["timeOut"])
             raise
-        return _booking(service, booking_journey, passengers, booking_bundle, order_data)
+        return _booking(service, booking_journey, passengers, booking_bundle, order_data, is_today)
 
     response_order = _book_once()
     _merge_order_result(response_order)
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         "taskData": {
             "depAirport": "HKT",
             "arrAirport": "CNX",
-            "depDate": "20260802",
+            "depDate": "20260709",
             "flightNumber": "VZ415",
             "cabin": "",
             "bookingConfig": {
@@ -151,6 +151,23 @@ if __name__ == "__main__":
             "callbackData": {
                 "callData": "",
                 "callUrl": "http://trip-api.bjrakd.com/triplex-foreign-external/external/task/pressureback/seatNewCallback"
+            },
+            'ext': {
+                "usePassport": True,
+                "pnrValidMinutes": 30,
+                "passengerCount": 1,
+                "proxy": {
+                    "source": "VJAPP",
+                    "configured": False,
+                    "host": "proxy.iproyal.net",
+                    "port": 9000,
+                    "username": "rakdvzweb01",
+                    "password": "sadasdas11",
+                    "region": "th",
+                    "sessId": None,
+                    "sessionTime": 10,
+                    "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
+                }
             }
         }
     }

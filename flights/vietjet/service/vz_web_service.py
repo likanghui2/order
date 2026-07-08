@@ -81,7 +81,7 @@ class VZWebService:
                 use_bundle: FlightBundleModel,
                 response_order_data: ResponseOrderInfoModel,
                 contact_info: ContactInfoModel,
-                need_pay: bool = False):
+                need_pay: bool = False, is_today: bool = False):
         journey_raw = copy.deepcopy((journey.ext or {}).get("raw") or {})
         fare_raw = copy.deepcopy((use_bundle.ext or {}).get("raw") or {})
         search_context = (
@@ -109,14 +109,14 @@ class VZWebService:
         self.__script.checkout_page(booking_code)
         self.__script.do_checkout(booking_code)
         payment_page = self.__script.payment_page(booking_code)
-        payment_method, funcoin_config = VZWebScript.parse_payment_data(payment_page)
+        payment_method, funcoin_config = VZWebScript().later_parse_payment_data(html=payment_page, is_today=is_today)
         self.__script.check_payment_fee(
             booking_code=booking_code,
             payment_method=payment_method,
             funcoin_limit=funcoin_config.get("funcoin_limit", 0),
         )
         recaptcha_token = self.__script.get_recaptcha_token()
-        self.__script.do_payment(booking_code, recaptcha_token, funcoin_config)
+        self.__script.do_payment(booking_code, recaptcha_token, funcoin_config, payment_group=payment_method['group'])
         booking_detail = self.__script.booking_detail_page(booking_code)
         pnr = VZWebScript.parse_reservation_code(booking_detail) or booking_code
 
