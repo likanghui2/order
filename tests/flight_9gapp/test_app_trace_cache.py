@@ -102,6 +102,13 @@ class ErrorRedis:
     eval = _raise
 
 
+def test_default_redis_pool_has_finite_socket_timeouts():
+    connection_kwargs = NineGAppTraceCache()._redis_util.get_pool().connection_kwargs
+
+    assert connection_kwargs["socket_connect_timeout"] == 5
+    assert connection_kwargs["socket_timeout"] == 5
+
+
 def test_token_is_raw_member_and_waits_120_seconds():
     clock = Clock(1_000)
     redis_connection = MemoryRedis(clock)

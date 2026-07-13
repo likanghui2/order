@@ -62,6 +62,21 @@ def test_trace_tokens_are_redacted_from_string_formats(value, token, expected):
     assert token not in redacted
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (
+            "request failed Spa-Trace-Id=TOKEN1",
+            "request failed Spa-Trace-Id=[REDACTED]",
+        ),
+        ("context trace_id=TOKEN2", "context trace_id=[REDACTED]"),
+        ("retry traceId=TOKEN3", "retry traceId=[REDACTED]"),
+    ],
+)
+def test_trace_tokens_are_redacted_from_embedded_key_value_text(value, expected):
+    assert redact_sensitive(value) == expected
+
+
 def test_http_logger_redacts_card_and_authentication_data(monkeypatch):
     captured = []
     monkeypatch.setattr(

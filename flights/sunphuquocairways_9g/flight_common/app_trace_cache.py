@@ -13,6 +13,8 @@ class NineGAppTraceCache:
     READY_SECONDS = 120
     AVAILABLE_SECONDS = 1_200
     KEY_TTL_SECONDS = READY_SECONDS + AVAILABLE_SECONDS
+    SOCKET_CONNECT_TIMEOUT_SECONDS = 5
+    SOCKET_TIMEOUT_SECONDS = 5
 
     POP_READY_SCRIPT = """
     local key = KEYS[1]
@@ -40,6 +42,8 @@ class NineGAppTraceCache:
             port=GlobalVariable.REDIS_PORT,
             username=GlobalVariable.REDIS_USERNAME,
             password=GlobalVariable.REDIS_PASSWORD,
+            socket_connect_timeout=self.SOCKET_CONNECT_TIMEOUT_SECONDS,
+            socket_timeout=self.SOCKET_TIMEOUT_SECONDS,
         )
 
     def _connection(self):
