@@ -33,4 +33,3 @@ RUN find /app -type f -name "*.sh" -exec dos2unix {} \; \
 USER celeryuser
 
 ENTRYPOINT ["/app/start-web.sh"]
-

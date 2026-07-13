@@ -71,4 +71,3 @@ def test_search_has_guarded_local_example():
         and node.test.left.id == "__name__"
         for node in tree.body
     )
-
