@@ -26,7 +26,12 @@ class WebOrderParser:
         dictionaries = itinerary.get("dictionaries") or {}
         pnr = str(data.get("id") or "") or None
         documents = data.get("travelDocuments") or []
-        passengers = cls._passengers(data.get("travelers") or [], documents, data.get("services") or [])
+        passengers = cls._passengers(
+            data.get("travelers") or [],
+            documents,
+            data.get("services") or [],
+            (baggage or {}).get("data") or {},
+        )
         journeys = cls._journeys(data.get("air") or {}, dictionaries)
         currency = cls._currency(data, dictionaries)
         total_amount = cls._total_amount(data, dictionaries, currency)
@@ -73,6 +78,7 @@ class WebOrderParser:
         travelers: list[dict],
         documents: list[dict],
         services: list[dict],
+        baggage_policies: dict,
     ) -> list[PassengerInfoModel]:
         ticket_by_traveler = {}
         for document in documents:
@@ -98,7 +104,12 @@ class WebOrderParser:
                 "firstName": str(name.get("firstName") or ""),
                 "gender": GenderEnum.F if title in {"MRS", "MISS", "MS"} else GenderEnum.M,
                 "birthday": traveler.get("dateOfBirth"),
-                "ssr": FlightSsrInfoModel(baggage=cls._traveler_baggage(traveler_id, services)),
+                "ssr": FlightSsrInfoModel(
+                    baggage=[
+                        *cls._traveler_baggage(traveler_id, services),
+                        *cls._policy_baggage(traveler_id, baggage_policies),
+                    ]
+                ),
                 "ext": {"travelerId": traveler_id},
             }
             ticket_number = ticket_by_traveler.get(traveler_id)
@@ -130,6 +141,33 @@ class WebOrderParser:
                     weight=int(Decimal(match.group(1))),
                 )
             )
+        return result
+
+    @staticmethod
+    def _policy_baggage(traveler_id: str, policies: dict) -> list[FlightBaggageModel]:
+        result = []
+        policy_types = (
+            ("freeCheckedBaggageAllowance", SsrTypeEnum.HAULING_BAGGAGE),
+            ("freeCarryOnAllowance", SsrTypeEnum.HAND_BAGGAGE),
+        )
+        for key, baggage_type in policy_types:
+            for item in policies.get(key) or []:
+                if traveler_id not in [str(value) for value in item.get("travelerIds") or []]:
+                    continue
+                details = item.get("details") or {}
+                descriptions = details.get("baggageCharacteristics") or []
+                description = " ".join(str(value.get("description") or "") for value in descriptions)
+                match = re.search(r"(\d+(?:\.\d+)?)\s*KG", description, re.IGNORECASE)
+                if not match:
+                    continue
+                result.append(
+                    FlightBaggageModel(
+                        type=baggage_type,
+                        price=Decimal(0),
+                        number=int(details.get("quantity") or 1),
+                        weight=int(Decimal(match.group(1))),
+                    )
+                )
         return result
 
     @classmethod

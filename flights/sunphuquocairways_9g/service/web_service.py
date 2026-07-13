@@ -116,7 +116,13 @@ class WebService:
         contacts = self._build_contacts(contact_info, assigned_ids)
         self._script.add_contacts(cart_id, contacts, passengers[0].last_name)
 
-        order_response = self._script.purchase_order(cart_id)
+        try:
+            order_response = self._script.purchase_order(cart_id)
+        except ServiceError as error:
+            if error.code != ServiceStateEnum.ROBOT_CHECK.name:
+                raise
+            self._script.solve_hcaptcha()
+            order_response = self._script.purchase_order(cart_id)
         order = self._first_order(order_response)
         pnr = str(order.get("id") or "")
         if not pnr:
@@ -442,6 +448,9 @@ class WebService:
         bundle: FlightBundleModel,
     ) -> tuple[Decimal, str]:
         amount = order.get("remainingAmount") or order.get("totalAmount") or {}
+        if not amount:
+            total_prices = (((order.get("air") or {}).get("prices") or {}).get("totalPrices") or [])
+            amount = (total_prices[0].get("total") or {}) if total_prices else {}
         currency = str(amount.get("currencyCode") or bundle.price_info.currency)
         value = amount.get("value")
         if value is None:

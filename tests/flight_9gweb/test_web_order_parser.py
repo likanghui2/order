@@ -113,3 +113,35 @@ def test_order_parser_attaches_purchased_baggage_to_passenger():
     assert baggage.code == "bag-20"
     assert baggage.weight == 20
 
+
+def test_order_parser_attaches_free_checked_and_carry_on_allowances():
+    policies = {
+        "data": {
+            "freeCheckedBaggageAllowance": [
+                {
+                    "travelerIds": ["traveler-1"],
+                    "details": {
+                        "quantity": 1,
+                        "baggageCharacteristics": [{"description": "UP TO 23 KG"}],
+                    },
+                }
+            ],
+            "freeCarryOnAllowance": [
+                {
+                    "travelerIds": ["traveler-1"],
+                    "details": {
+                        "quantity": 1,
+                        "baggageCharacteristics": [{"description": "UP TO 7 KG"}],
+                    },
+                }
+            ],
+        }
+    }
+
+    order = WebOrderParser.parse(itinerary(), policies)
+
+    assert [item.type for item in order.passengers[0].ssr.baggage] == [
+        SsrTypeEnum.HAULING_BAGGAGE,
+        SsrTypeEnum.HAND_BAGGAGE,
+    ]
+    assert [item.weight for item in order.passengers[0].ssr.baggage] == [23, 7]

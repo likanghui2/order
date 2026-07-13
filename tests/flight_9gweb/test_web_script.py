@@ -199,7 +199,7 @@ def test_no_flight_and_http_error_map_to_current_errors():
 
 def test_solve_hcaptcha_submits_token_once():
     hcaptcha = FakeHcaptcha()
-    script = authenticated_script(response({}, 200))
+    script = authenticated_script(response("<html>verified</html>", 200))
     script.hcaptcha = hcaptcha
     script.incapsula_url = (
         "https://api-des.sunphuquocairways.com/_Incapsula_Resource?SWCGHOEL=v2&dai=123&cts=456"

@@ -260,7 +260,8 @@ class WebScript:
             data=urllib.parse.urlencode({"g-recaptcha-response": token}),
             timeout=self.timeout,
         )
-        self._response_json(response, 200, allow_empty=True)
+        if response.status != 200:
+            raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY, response.status)
 
     def _json_request(self, method: str, path: str, payload, expected_status) -> dict:
         request = getattr(self._tls, method)

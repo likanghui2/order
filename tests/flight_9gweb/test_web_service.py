@@ -1,10 +1,13 @@
 from decimal import Decimal
 
+import pytest
+
 from common.enums.freight_rate_type_enum import FreightRateTypeEnum
 from common.enums.gender_enum import GenderEnum
 from common.enums.order_state_enum import OrderStateEnum
 from common.enums.passenger_type_enum import PassengerTypeEnum
 from common.enums.ssr_type_enum import SsrTypeEnum
+from common.errors.service_error import ServiceError, ServiceStateEnum
 from common.model.flight.flight_baggage_model import FlightBaggageModel
 from common.model.flight.flight_bundle_model import FlightBundleModel
 from common.model.flight.flight_bundle_price_model import FlightBundlePriceModel
@@ -119,7 +122,13 @@ class FakeScript:
                         },
                     ],
                     "contacts": [{"id": "contact-1", "contactType": "Email"}],
-                    "remainingAmount": {"value": 2250000, "currencyCode": "VND"},
+                    "air": {
+                        "prices": {
+                            "totalPrices": [
+                                {"total": {"value": 2250000, "currencyCode": "VND"}}
+                            ]
+                        }
+                    },
                 }
             ],
             "dictionaries": {
@@ -142,6 +151,23 @@ class FakeScript:
 
     def get_baggage(self, pnr, last_name):
         return {"data": []}
+
+
+class ChallengeScript(FakeScript):
+    def __init__(self, fail_twice=False):
+        super().__init__()
+        self.fail_twice = fail_twice
+        self.solve_calls = 0
+
+    def purchase_order(self, cart_id):
+        self.purchase_calls += 1
+        if self.purchase_calls == 1 or self.fail_twice:
+            raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
+        self.purchase_calls -= 1
+        return super().purchase_order(cart_id)
+
+    def solve_hcaptcha(self):
+        self.solve_calls += 1
 
 
 def service():
@@ -205,6 +231,29 @@ def test_add_requested_baggage_merges_quantities_and_submits_once():
             [{"serviceId": "bag-20", "travelerId": "order-adt", "quantity": 2, "parameters": []}],
         )
     ]
+
+
+def test_purchase_order_retries_only_after_one_explicit_challenge_solution():
+    script = ChallengeScript()
+    current = WebService(None, script=script)
+
+    result = current.create_order(BUNDLE, PASSENGERS, CONTACT)
+
+    assert result.pnr == "ABC123"
+    assert script.purchase_calls == 2
+    assert script.solve_calls == 1
+
+
+def test_purchase_order_second_challenge_is_not_retried_again():
+    script = ChallengeScript(fail_twice=True)
+    current = WebService(None, script=script)
+
+    with pytest.raises(ServiceError) as error:
+        current.create_order(BUNDLE, PASSENGERS, CONTACT)
+
+    assert error.value.code == ServiceStateEnum.ROBOT_CHECK.name
+    assert script.purchase_calls == 2
+    assert script.solve_calls == 1
 
 
 def test_order_detail_uses_itinerary_and_maps_status():
