@@ -37,6 +37,11 @@ _FORM_VALUE_PATTERN = re.compile(
     r"(?P<value>[^&#\s]*)",
     re.IGNORECASE,
 )
+_UNQUOTED_TRACE_VALUE_PATTERN = re.compile(
+    r"(?P<prefix>[\"']?(?:Spa-Trace-Id|trace_id|traceId)[\"']?\s*:\s*)"
+    r"(?P<value>[^\"'\s,;&}\]]+)",
+    re.IGNORECASE,
+)
 _BEARER_PATTERN = re.compile(r"(?i)Bearer\s+[A-Za-z0-9._~+/=-]+")
 _PAN_PATTERN = re.compile(r"(?<!\d)\d{12,19}(?!\d)")
 
@@ -76,6 +81,10 @@ def _redact_string(value: str) -> str:
 
     redacted = _KEY_VALUE_PATTERN.sub(replacement, value)
     redacted = _FORM_VALUE_PATTERN.sub(form_replacement, redacted)
+    redacted = _UNQUOTED_TRACE_VALUE_PATTERN.sub(
+        lambda match: f"{match.group('prefix')}[REDACTED]",
+        redacted,
+    )
     redacted = _BEARER_PATTERN.sub("Bearer [REDACTED]", redacted)
     return _PAN_PATTERN.sub(lambda match: _mask_card(match.group(0)), redacted)
 

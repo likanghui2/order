@@ -23,6 +23,45 @@ def test_trace_tokens_are_redacted_from_headers_and_payloads():
     assert "trace-secret" not in str(redacted)
 
 
+@pytest.mark.parametrize(
+    ("value", "token", "expected"),
+    [
+        (
+            '{"Spa-Trace-Id": "trace-json-secret"}',
+            "trace-json-secret",
+            '{"Spa-Trace-Id": "[REDACTED]"}',
+        ),
+        (
+            "Spa-Trace-Id=trace-form-secret",
+            "trace-form-secret",
+            "Spa-Trace-Id=[REDACTED]",
+        ),
+        (
+            "Spa-Trace-Id: trace-header-secret",
+            "trace-header-secret",
+            "Spa-Trace-Id: [REDACTED]",
+        ),
+        (
+            "trace_id: trace-header-secret-2",
+            "trace-header-secret-2",
+            "trace_id: [REDACTED]",
+        ),
+        (
+            "traceId: trace-header-secret-3",
+            "trace-header-secret-3",
+            "traceId: [REDACTED]",
+        ),
+    ],
+    ids=["json", "form", "spa-header", "snake-header", "camel-header"],
+)
+def test_trace_tokens_are_redacted_from_string_formats(value, token, expected):
+    redacted = redact_sensitive(value)
+
+    assert redacted == expected
+    assert "[REDACTED]" in redacted
+    assert token not in redacted
+
+
 def test_http_logger_redacts_card_and_authentication_data(monkeypatch):
     captured = []
     monkeypatch.setattr(
