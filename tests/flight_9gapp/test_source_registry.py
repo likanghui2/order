@@ -1,4 +1,7 @@
+import ast
 import importlib
+from pathlib import Path
+import runpy
 from unittest.mock import Mock
 
 import pytest
@@ -55,3 +58,40 @@ def test_run_search_maps_all_current_task_fields():
         currency_code="VND",
         promo_code="SAVE",
     )
+
+
+@pytest.mark.parametrize(
+    ("module_path", "task_type"),
+    [
+        (Path("task/9Gapp/search.py"), "search"),
+        (Path("task/9Gapp/sham_booking.py"), "shamBooking"),
+    ],
+)
+def test_9gapp_task_has_guarded_local_example(module_path, task_type):
+    source = module_path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    guards = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Compare)
+        and isinstance(node.test.left, ast.Name)
+        and node.test.left.id == "__name__"
+        and any(
+            isinstance(item, ast.Constant) and item.value == "__main__"
+            for item in node.test.comparators
+        )
+    ]
+
+    assert len(guards) == 1
+    assert '"source": "9GAPP"' in source
+    assert f'"taskType": "{task_type}"' in source
+    assert "main({" in source
+
+
+@pytest.mark.parametrize(
+    "module_path",
+    [Path("task/9Gapp/search.py"), Path("task/9Gapp/sham_booking.py")],
+)
+def test_9gapp_task_can_load_as_direct_script_without_running_example(module_path):
+    runpy.run_path(str(module_path), run_name="direct_script_import_check")

@@ -56,3 +56,34 @@ def main(self, search_data: RequestSearchTaskDataModel):
     else:
         CACHE.set_data(script_cache["value"], None, script_cache["timeOut"])
     return response
+
+
+if __name__ == "__main__":
+    print(main({
+        "taskId": "9gapp-local-search",
+        "taskType": "search",
+        "source": "9GAPP",
+        "taskData": {
+            "depAirport": "SGN",
+            "arrAirport": "PQC",
+            "depDate": "20260720",
+            "retDate": "",
+            "adultNumber": 1,
+            "childNumber": 0,
+            "currencyCode": "VND",
+            "freightRateType": "PT",
+            "privateCode": [],
+            "ext": {
+                "proxy": {
+                    "host": "proxy.example.com",
+                    "port": 8080,
+                    "username": "YOUR_USERNAME",
+                    "password": "YOUR_PASSWORD",
+                    "region": "vn",
+                    "sessId": None,
+                    "sessionTime": 10,
+                    "format": "http://{username}:{password}@{host}:{port}",
+                },
+            },
+        },
+    }))

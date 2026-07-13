@@ -1,4 +1,5 @@
 from decimal import Decimal
+from importlib import import_module
 from typing import Optional
 
 from common.decorators.task_decorator import task_decorator
@@ -15,7 +16,7 @@ from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.sham_booking_util import ShamBookingUtil
 from flights.sunphuquocairways_9g.service.app_service import AppService
 
-from .search import _app_date
+_app_date = import_module("task.9Gapp.search")._app_date
 
 CELERY_APP = celery_util.create(GlobalVariable.RABBITMQ_USERNAME, GlobalVariable.RABBITMQ_PASSWORD)
 LOG = log_util.LogUtil("sunPhuQuocAirwaysAppShamBooking")
@@ -125,3 +126,36 @@ def main(
     service = AppService(proxy_info_from_ext(sham_booking_data.ext))
     service.initialize_session()
     return _run_sham_booking(service, sham_booking_data, response_order_data)
+
+
+if __name__ == "__main__":
+    # 运行前请先实时搜索，并更新日期、航班号、舱位和产品。
+    print(main({
+        "taskId": "9gapp-local-sham-booking",
+        "taskType": "shamBooking",
+        "source": "9GAPP",
+        "taskData": {
+            "depAirport": "SGN",
+            "arrAirport": "PQC",
+            "depDate": "20260720",
+            "flightNumber": "9G0123",
+            "cabin": "Y",
+            "bookingConfig": {
+                "bookRate": 10,
+                "currencyCode": "VND",
+            },
+            "ext": {
+                "productTag": "ECONOMY LITE",
+                "proxy": {
+                    "host": "proxy.example.com",
+                    "port": 8080,
+                    "username": "YOUR_USERNAME",
+                    "password": "YOUR_PASSWORD",
+                    "region": "vn",
+                    "sessId": None,
+                    "sessionTime": 10,
+                    "format": "http://{username}:{password}@{host}:{port}",
+                },
+            },
+        },
+    }))
