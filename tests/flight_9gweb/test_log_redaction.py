@@ -5,10 +5,76 @@ import pytest
 
 from common.decorators.http_log_decorator import http_log_decorator
 from common.model.response_info_model import ResponseInfoModel
+from common.utils.log_redaction import redact_sensitive
 
 
 def response():
     return ResponseInfoModel(data_bytes=b"{}", status=200, headers={}, url="https://example.com")
+
+
+def test_trace_tokens_are_redacted_from_headers_and_payloads():
+    redacted = redact_sensitive({
+        "headers": {"Spa-Trace-Id": "trace-secret"},
+        "trace_id": "trace-secret-2",
+    })
+
+    assert redacted["headers"]["Spa-Trace-Id"] == "[REDACTED]"
+    assert redacted["trace_id"] == "[REDACTED]"
+    assert "trace-secret" not in str(redacted)
+
+
+@pytest.mark.parametrize(
+    ("value", "token", "expected"),
+    [
+        (
+            '{"Spa-Trace-Id": "trace-json-secret"}',
+            "trace-json-secret",
+            '{"Spa-Trace-Id": "[REDACTED]"}',
+        ),
+        (
+            "Spa-Trace-Id=trace-form-secret",
+            "trace-form-secret",
+            "Spa-Trace-Id=[REDACTED]",
+        ),
+        (
+            "Spa-Trace-Id: trace-header-secret",
+            "trace-header-secret",
+            "Spa-Trace-Id: [REDACTED]",
+        ),
+        (
+            "trace_id: trace-header-secret-2",
+            "trace-header-secret-2",
+            "trace_id: [REDACTED]",
+        ),
+        (
+            "traceId: trace-header-secret-3",
+            "trace-header-secret-3",
+            "traceId: [REDACTED]",
+        ),
+    ],
+    ids=["json", "form", "spa-header", "snake-header", "camel-header"],
+)
+def test_trace_tokens_are_redacted_from_string_formats(value, token, expected):
+    redacted = redact_sensitive(value)
+
+    assert redacted == expected
+    assert "[REDACTED]" in redacted
+    assert token not in redacted
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (
+            "request failed Spa-Trace-Id=TOKEN1",
+            "request failed Spa-Trace-Id=[REDACTED]",
+        ),
+        ("context trace_id=TOKEN2", "context trace_id=[REDACTED]"),
+        ("retry traceId=TOKEN3", "retry traceId=[REDACTED]"),
+    ],
+)
+def test_trace_tokens_are_redacted_from_embedded_key_value_text(value, expected):
+    assert redact_sensitive(value) == expected
 
 
 def test_http_logger_redacts_card_and_authentication_data(monkeypatch):

@@ -18,17 +18,28 @@ _SECRET_KEYS = {
     "password",
     "cookie",
     "proxy",
+    "spatraceid",
+    "spa-trace-id",
+    "traceid",
+    "trace_id",
 }
 _KEY_VALUE_PATTERN = re.compile(
     r"(?P<prefix>[\"']?(?P<key>cardNumber|card_number|pan|cardCVV|card_cvv|CVV|cvv|"
-    r"securityCode|security_code|authorization|x-d-token|client_secret|password|cookie|proxy)"
+    r"securityCode|security_code|authorization|x-d-token|client_secret|password|cookie|proxy|"
+    r"Spa-Trace-Id|trace_id|traceId)"
     r"[\"']?\s*[:=]\s*[\"'])(?P<value>[^\"']*)(?P<suffix>[\"'])",
     re.IGNORECASE,
 )
 _FORM_VALUE_PATTERN = re.compile(
     r"(?P<prefix>(?:^|[?&])(?P<key>cardNumber|card_number|pan|cardCVV|card_cvv|CVV|cvv|"
-    r"securityCode|security_code|authorization|x-d-token|client_secret|password|cookie|proxy)=)"
+    r"securityCode|security_code|authorization|x-d-token|client_secret|password|cookie|proxy|"
+    r"Spa-Trace-Id|trace_id|traceId)=)"
     r"(?P<value>[^&#\s]*)",
+    re.IGNORECASE,
+)
+_UNQUOTED_TRACE_VALUE_PATTERN = re.compile(
+    r"(?P<prefix>[\"']?(?:Spa-Trace-Id|trace_id|traceId)[\"']?\s*[:=]\s*)"
+    r"(?P<value>[^\"'\s,;&}\]]+)",
     re.IGNORECASE,
 )
 _BEARER_PATTERN = re.compile(r"(?i)Bearer\s+[A-Za-z0-9._~+/=-]+")
@@ -69,6 +80,10 @@ def _redact_string(value: str) -> str:
         return f"{match.group('prefix')}{replacement_value}"
 
     redacted = _KEY_VALUE_PATTERN.sub(replacement, value)
+    redacted = _UNQUOTED_TRACE_VALUE_PATTERN.sub(
+        lambda match: f"{match.group('prefix')}[REDACTED]",
+        redacted,
+    )
     redacted = _FORM_VALUE_PATTERN.sub(form_replacement, redacted)
     redacted = _BEARER_PATTERN.sub("Bearer [REDACTED]", redacted)
     return _PAN_PATTERN.sub(lambda match: _mask_card(match.group(0)), redacted)

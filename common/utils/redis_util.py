@@ -9,8 +9,28 @@ from common.global_variable import GlobalVariable
 
 
 class RedisUtil:
-    def __init__(self,host: str,port: str,username: Optional[str],password: Optional[str],db: Optional[int] = 0):
-        self.__pool = redis.ConnectionPool(host=host, port=port, username=username, password=password,db=db)
+    def __init__(
+        self,
+        host: str,
+        port: str,
+        username: Optional[str],
+        password: Optional[str],
+        db: Optional[int] = 0,
+        socket_connect_timeout: Optional[float] = None,
+        socket_timeout: Optional[float] = None,
+    ):
+        connection_kwargs = {
+            "host": host,
+            "port": port,
+            "username": username,
+            "password": password,
+            "db": db,
+        }
+        if socket_connect_timeout is not None:
+            connection_kwargs["socket_connect_timeout"] = socket_connect_timeout
+        if socket_timeout is not None:
+            connection_kwargs["socket_timeout"] = socket_timeout
+        self.__pool = redis.ConnectionPool(**connection_kwargs)
 
 
     def get_pool(self):

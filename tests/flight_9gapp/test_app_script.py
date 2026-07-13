@@ -23,7 +23,10 @@ class FakeTls:
 
     def post(self, **kwargs):
         self.calls.append(kwargs)
-        return self.responses.pop(0)
+        result = self.responses.pop(0)
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
     def get(self, **kwargs):
         self.calls.append(kwargs)
@@ -37,6 +40,23 @@ class FakeCaptcha:
     def incapsula_token_get(self, **kwargs):
         self.calls.append(kwargs)
         return "token-1"
+
+
+class FakeTraceCache:
+    def __init__(self, ready=None):
+        self.ready = list(ready or [])
+        self.saved = []
+
+    def save(self, token):
+        self.saved.append(token)
+
+    def pop_ready(self):
+        return self.ready.pop(0) if self.ready else None
+
+
+class FalsyTraceCache(FakeTraceCache):
+    def __bool__(self):
+        return False
 
 
 def response(data: dict, status: int = 200) -> ResponseInfoModel:
@@ -67,9 +87,18 @@ def test_signed_headers_use_exact_compact_body(monkeypatch):
     assert headers["X-Nonce"] == "abcdefghij"
 
 
-def test_search_builds_round_trip_payload_and_records_trace_id():
+def test_constructor_preserves_injected_falsy_trace_cache():
+    cache = FalsyTraceCache()
+
+    script = AppScript(None, tls=FakeTls(), captcha=FakeCaptcha(), trace_cache=cache)
+
+    assert script._trace_cache is cache
+
+
+def test_search_builds_round_trip_payload_and_saves_trace_id_in_global_cache():
+    cache = FakeTraceCache()
     tls = FakeTls([response({"success": True, "trace_id": "trace-1", "data": {}})])
-    script = AppScript(None, tls=tls, captcha=FakeCaptcha())
+    script = AppScript(None, tls=tls, captcha=FakeCaptcha(), trace_cache=cache)
 
     result = script.search(
         [("SGN", "PQC", "2026-08-01T00:00:00.000"), ("PQC", "SGN", "2026-08-04T00:00:00.000")],
@@ -85,13 +114,31 @@ def test_search_builds_round_trip_payload_and_records_trace_id():
     assert payload["child"] == 1
     assert payload["option"]["promo_code"] == "SAVE"
     assert result["success"] is True
-    assert script.trace_id == "trace-1"
+    assert cache.saved == ["trace-1"]
+    assert script.trace_id is None
+
+
+def test_search_rejects_response_without_trace_id():
+    cache = FakeTraceCache()
+    tls = FakeTls([response({"success": True, "data": {}})])
+    script = AppScript(None, tls=tls, captcha=FakeCaptcha(), trace_cache=cache)
+
+    with pytest.raises(ServiceError) as error:
+        script.search([("SGN", "PQC", "2026-08-01T00:00:00.000")], 1, 0)
+
+    assert error.value.code == ServiceStateEnum.DATA_VALIDATION_FAILED.name
+    assert cache.saved == []
 
 
 def test_create_order_waits_gets_token_and_sends_it_once(monkeypatch):
     tls = FakeTls([response({"success": True, "data": {"booking_id": "booking-1"}})])
     captcha = FakeCaptcha()
-    script = AppScript(None, tls=tls, captcha=captcha)
+    script = AppScript(
+        None,
+        tls=tls,
+        captcha=captcha,
+        trace_cache=FakeTraceCache(["cached-trace"]),
+    )
     waits = []
     monkeypatch.setattr(time, "sleep", waits.append)
 
@@ -106,6 +153,90 @@ def test_create_order_waits_gets_token_and_sends_it_once(monkeypatch):
     assert len(captcha.calls) == 1
     assert tls.calls[0]["headers"]["x-d-token"] == "token-1"
     assert json.loads(tls.calls[0]["data"])["trip_ids"] == ["trip-1"]
+
+
+def test_create_and_hold_claim_one_cached_trace_token(monkeypatch):
+    cache = FakeTraceCache(["cached-trace"])
+    tls = FakeTls(
+        [
+            response({"success": True, "data": {"booking_id": "booking-1"}}),
+            response({"success": True, "data": {"pnr_number": "ABC123"}}),
+        ]
+    )
+    script = AppScript(None, tls=tls, captcha=FakeCaptcha(), trace_cache=cache)
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    script.create_order(["trip-1"], [{"first_name": "ADA"}], [{"email": "a@example.com"}])
+    script.hold_booking("booking-1")
+
+    assert [call["headers"]["Spa-Trace-Id"] for call in tls.calls] == [
+        "cached-trace",
+        "cached-trace",
+    ]
+    assert cache.ready == []
+    assert script.trace_id is None
+    assert "Spa-Trace-Id" not in script.common_headers()
+
+
+@pytest.mark.parametrize(
+    ("create_result", "expected_error"),
+    [
+        (RuntimeError("network error"), RuntimeError),
+        (response({"success": False}), ServiceError),
+    ],
+    ids=["http-error", "response-error"],
+)
+def test_create_order_clears_claimed_trace_when_request_fails(
+    monkeypatch,
+    create_result,
+    expected_error,
+):
+    script = AppScript(
+        None,
+        tls=FakeTls([create_result]),
+        captcha=FakeCaptcha(),
+        trace_cache=FakeTraceCache(["cached-trace"]),
+    )
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    with pytest.raises(expected_error):
+        script.create_order(["trip-1"], [{"first_name": "ADA"}], [{"email": "a@example.com"}])
+
+    assert script.trace_id is None
+
+
+def test_hold_booking_clears_claimed_trace_when_request_fails(monkeypatch):
+    tls = FakeTls(
+        [
+            response({"success": True, "data": {"booking_id": "booking-1"}}),
+            response({"success": False}),
+        ]
+    )
+    script = AppScript(
+        None,
+        tls=tls,
+        captcha=FakeCaptcha(),
+        trace_cache=FakeTraceCache(["cached-trace"]),
+    )
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    script.create_order(["trip-1"], [{"first_name": "ADA"}], [{"email": "a@example.com"}])
+    with pytest.raises(ServiceError):
+        script.hold_booking("booking-1")
+
+    assert script.trace_id is None
+
+
+def test_create_order_rejects_empty_trace_pool_before_post(monkeypatch):
+    tls = FakeTls()
+    script = AppScript(None, tls=tls, captcha=FakeCaptcha(), trace_cache=FakeTraceCache())
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    with pytest.raises(ServiceError) as error:
+        script.create_order(["trip-1"], [{"first_name": "ADA"}], [{"email": "a@example.com"}])
+
+    assert error.value.code == ServiceStateEnum.BUSINESS_ERROR.name
+    assert tls.calls == []
 
 
 def test_no_flight_response_maps_to_current_error():
