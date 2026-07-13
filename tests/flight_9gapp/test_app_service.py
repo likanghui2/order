@@ -61,6 +61,7 @@ class FakeScript:
         self.hold_calls = 0
         self.passenger_list = None
         self.contact_list = None
+        self.trace_id = None
 
     def initialize_session(self):
         pass
@@ -72,6 +73,7 @@ class FakeScript:
         self.create_calls += 1
         self.passenger_list = passenger_list
         self.contact_list = contact_list
+        self.trace_id = "claimed-trace"
         return self.create_response
 
     def hold_booking(self, booking_id, **kwargs):
@@ -92,6 +94,7 @@ def test_create_and_hold_sends_current_passengers_and_returns_pnr():
     assert script.passenger_list[0]["title"] == "Mrs"
     assert script.contact_list[0]["email"] == CONTACT.email_address
     assert script.contact_list[1]["dial_code"] == "84"
+    assert script.trace_id is None
 
 
 @pytest.mark.parametrize(
@@ -102,13 +105,15 @@ def test_create_and_hold_sends_current_passengers_and_returns_pnr():
     ],
 )
 def test_create_and_hold_rejects_missing_required_data(create_response, hold_response, missing_field):
-    service = AppService(None, script=FakeScript(create_response, hold_response))
+    script = FakeScript(create_response, hold_response)
+    service = AppService(None, script=script)
 
     with pytest.raises(ServiceError) as error:
         service.create_and_hold(bundle(), PASSENGERS, CONTACT, "VND")
 
     assert error.value.code == ServiceStateEnum.DATA_VALIDATION_FAILED.name
     assert missing_field in error.value.message
+    assert script.trace_id is None
 
 
 def test_create_and_hold_rejects_missing_fare_key_before_creating_order():

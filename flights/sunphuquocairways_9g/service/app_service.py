@@ -65,24 +65,27 @@ class AppService:
         contact_info: ContactInfoModel,
         currency_code: str,
     ) -> tuple[str, str]:
-        if not bundle.fare_key:
-            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "fare_key")
-        context = Config.currency_context(currency_code)
-        pax_ids = [self._pax_id() for _ in passengers]
-        response = self._script.create_order(
-            trip_ids=bundle.fare_key.split("^"),
-            passenger_list=self._build_passengers(passengers, pax_ids),
-            contact_list=self._build_contacts(contact_info, context["x_lang"]),
-            **context,
-        )
-        booking_id = (response.get("data") or {}).get("booking_id")
-        if not booking_id:
-            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "booking_id")
-        hold_response = self._script.hold_booking(booking_id=booking_id, **context)
-        pnr = (hold_response.get("data") or {}).get("pnr_number")
-        if not pnr:
-            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "pnr_number")
-        return booking_id, pnr
+        try:
+            if not bundle.fare_key:
+                raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "fare_key")
+            context = Config.currency_context(currency_code)
+            pax_ids = [self._pax_id() for _ in passengers]
+            response = self._script.create_order(
+                trip_ids=bundle.fare_key.split("^"),
+                passenger_list=self._build_passengers(passengers, pax_ids),
+                contact_list=self._build_contacts(contact_info, context["x_lang"]),
+                **context,
+            )
+            booking_id = (response.get("data") or {}).get("booking_id")
+            if not booking_id:
+                raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "booking_id")
+            hold_response = self._script.hold_booking(booking_id=booking_id, **context)
+            pnr = (hold_response.get("data") or {}).get("pnr_number")
+            if not pnr:
+                raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "pnr_number")
+            return booking_id, pnr
+        finally:
+            self._script.trace_id = None
 
     @classmethod
     def _build_passengers(cls, passengers: list[PassengerInfoModel], pax_ids: list[str]) -> list[dict]:
