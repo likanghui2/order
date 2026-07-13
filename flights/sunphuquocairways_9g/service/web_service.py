@@ -1,17 +1,24 @@
 import re
+import time
+import urllib.parse
+import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional
 
 from common.enums.gender_enum import GenderEnum
+from common.enums.order_state_enum import OrderStateEnum
 from common.enums.passenger_type_enum import PassengerTypeEnum
 from common.errors.service_error import ServiceError, ServiceStateEnum
 from common.model.flight.flight_bundle_model import FlightBundleModel
 from common.model.flight.flight_journey_model import FlightJourneyModel
 from common.model.order.contact_info_model import ContactInfoModel
 from common.model.order.passenger_info_model import PassengerInfoModel
+from common.model.order.payment_info_model import PaymentInfoModel
 from common.model.proxy_Info_model import ProxyInfoModel
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
+from common.utils.cardinalcommerce_util import CardinalcommerceUtil
+from flights.sunphuquocairways_9g.config import Config
 from flights.sunphuquocairways_9g.flight_common.web_flight_parser import WebFlightParser
 from flights.sunphuquocairways_9g.flight_common.web_order_parser import WebOrderParser
 from flights.sunphuquocairways_9g.script.web_script import WebScript
@@ -41,7 +48,7 @@ class WebService:
         self._script = script or WebScript(proxy_info)
         self._proxy_info = proxy_info
         self._currency = ""
-        self._cardinal_factory = cardinal_factory
+        self._cardinal_factory = cardinal_factory or CardinalcommerceUtil
 
     @property
     def script(self):
@@ -181,6 +188,129 @@ class WebService:
         itinerary = self._script.get_itinerary(pnr, last_name)
         baggage = self._script.get_baggage(pnr, last_name)
         return WebOrderParser.parse(itinerary, baggage)
+
+    def pay_order(
+        self,
+        pnr: str,
+        passengers: list[PassengerInfoModel],
+        contact_info: ContactInfoModel,
+        payment_info: PaymentInfoModel,
+    ) -> ResponseOrderInfoModel:
+        vendor = self._card_vendor(payment_info.card_type)
+        if not passengers:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "passengers")
+        expiry = str(payment_info.card_expiry_date or "").split("/")
+        if len(expiry) != 2 or not all(expiry):
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "card_expiry_date")
+        exp_month, exp_year = expiry
+        last_name = passengers[0].last_name
+
+        methods = self._script.payment_methods(pnr, last_name)
+        methods_data = methods.get("data") or {}
+        available = methods_data.get("availablePaymentMethods") or []
+        pp_id = next(
+            (
+                str(item.get("id") or "")
+                for item in available
+                if item.get("paymentType") == "CheckoutFormPayment"
+            ),
+            "",
+        )
+        if not pp_id:
+            raise ServiceError(ServiceStateEnum.PAYMENT_FAILED)
+
+        self._script.payment_action({"PPID": pp_id, "action": "load"})
+        base_mopdata = {
+            "pan": re.sub(r"[\s-]+", "", payment_info.card_number),
+            "CVV": payment_info.card_cvv,
+            "holdername": payment_info.card_holder_name.replace("/", " ").strip(),
+            "expmonth": exp_month,
+            "expyear": exp_year,
+            "vendor": vendor,
+            "contact": {
+                "email": contact_info.email_address,
+                "phone": f"{contact_info.phone_code} {contact_info.phone_number}",
+            },
+        }
+        init_response = self._script.payment_action(
+            {
+                "PPID": pp_id,
+                "data": {"mopid": "creditcard", "mopdata": base_mopdata.copy(), "tid": "0"},
+                "action": "tdsinit",
+            }
+        )
+        jwt = str(init_response.get("jwt") or "")
+        if not jwt:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "3ds_jwt")
+
+        cardinal = self._cardinal_factory(
+            proxy_str=self._proxy_string(),
+            agent=Config.USER_AGENT,
+        )
+        cardinal.cardinaltrusted_init_jwt(jwt=jwt, user_agent=Config.USER_AGENT)
+        reference_id = f"1_{uuid.uuid4()}"
+        render_url = (
+            "https://geo.cardinalcommerce.com/DeviceFingerprintWeb/V2/Browser/Render"
+            "?threatmetrix=true&alias=Default&orgUnitId=68c40c6ae7d0b603289e8086"
+            "&tmEventType=PAYMENT"
+            f"&referenceId={urllib.parse.quote(reference_id)}"
+            "&geolocation=false&origin=Songbird"
+        )
+        features = cardinal.render_post(
+            render_url,
+            urllib.parse.urlencode(
+                {"nonce": str(uuid.uuid4()), "bin": base_mopdata["pan"][:6]}
+            ),
+        )
+        fingerprint_reference = str(features.get("referenceId") or reference_id)
+        nonce = str(features.get("nonce") or "")
+        org_unit_id = str(features.get("orgUnitId") or "")
+        if not nonce or not org_unit_id:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "3ds_fingerprint")
+        cardinal.cardinalcommerce_save_browser_data(
+            nonce=nonce,
+            reference_id=fingerprint_reference,
+            org_unit_id=org_unit_id,
+            user_agent=Config.USER_AGENT,
+            referrer="https://centinelapi.cardinalcommerce.com/",
+        )
+
+        base_mopdata["tdsSessionId"] = fingerprint_reference
+        add_response = self._script.payment_action(
+            {
+                "PPID": pp_id,
+                "data": {"mopid": "creditcard", "mopdata": base_mopdata},
+                "action": "add",
+            }
+        )
+        action_token = str(add_response.get("actionToken") or "")
+        if not action_token:
+            raise ServiceError(ServiceStateEnum.PAYMENT_FAILED)
+        self._script.payment_records(
+            pnr,
+            last_name,
+            {
+                "paymentRequests": [
+                    {
+                        "paymentMethod": {
+                            "paymentType": "CheckoutFormPayment",
+                            "id": pp_id,
+                            "actionToken": action_token,
+                        }
+                    }
+                ]
+            },
+        )
+
+        for attempt in range(5):
+            order = WebOrderParser.parse(self._script.get_itinerary(pnr, last_name))
+            if order.order_state == OrderStateEnum.OPEN_FOR_USE and order.passengers and all(
+                passenger.ticket_number for passenger in order.passengers
+            ):
+                return order
+            if attempt < 4:
+                time.sleep(5)
+        raise ServiceError(ServiceStateEnum.ORDER_STATE_CHECK_LIMIT)
 
     def _update_all_travelers(
         self,
@@ -349,3 +479,17 @@ class WebService:
             if match and int(Decimal(match.group(1))) == int(weight):
                 return str(service.get("id") or "")
         return ""
+
+    @staticmethod
+    def _card_vendor(card_type: str) -> str:
+        normalized = str(card_type or "").upper()
+        if normalized in {"VI", "VISA"}:
+            return "visa"
+        if normalized in {"CA", "MC", "MASTERCARD"}:
+            return "mastercard"
+        raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, f"不支持的卡类型[{card_type}]")
+
+    def _proxy_string(self) -> str | None:
+        if not self._proxy_info:
+            return None
+        return self._proxy_info.get_proxy_info_to_string()
