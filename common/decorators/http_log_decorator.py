@@ -17,6 +17,7 @@ from typing import Optional
 from common.global_variable import GlobalVariable
 from common.model.response_info_model import ResponseInfoModel
 from common.utils.log_util import LogUtil
+from common.utils.log_redaction import redact_sensitive
 
 lob_object = LogUtil("HttpLog")
 def http_log_decorator():
@@ -32,7 +33,7 @@ def http_log_decorator():
             }
 
             if GlobalVariable.OUTPUT_HTTP_LOG:
-                lob_object.info(json.dumps(log_data), "HTTP请求开始")
+                lob_object.info(json.dumps(redact_sensitive(log_data)), "HTTP请求开始")
             response: Optional[ResponseInfoModel] = None
             try:
                 response = func(self, *args, **kwargs)
@@ -41,11 +42,11 @@ def http_log_decorator():
                 log_data['responseHeaders'] = response.headers
                 log_data['time'] = time.time() - start_time
                 if GlobalVariable.OUTPUT_HTTP_LOG:
-                    lob_object.info(json.dumps(log_data), "HTTP请求响应")
+                    lob_object.info(json.dumps(redact_sensitive(log_data)), "HTTP请求响应")
             except Exception:
                 log_data["time"] = time.time() - start_time
                 log_data["error"] = traceback.format_exc()
-                lob_object.error(json.dumps(log_data), "HTTP请求异常")
+                lob_object.error(json.dumps(redact_sensitive(log_data)), "HTTP请求异常")
                 raise
 
             return response

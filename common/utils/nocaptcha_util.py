@@ -16,10 +16,7 @@ class NoCaptchaUtil:
             'User-Token': self.__api_key,
             'Content-Type': 'application/json',
         }
-        print(data)
         response = requests.Session().post(url=url, headers=headers, json=data, timeout=60)
-
-        print(response.text)
 
         if 'status' in response.json() and response.json()['status'] != 1:
             raise ServiceError(ServiceStateEnum.API_RESPONSE_FAILED)
@@ -31,7 +28,7 @@ class NoCaptchaUtil:
 
     def preflight(self):
 
-        r = self.submit("http://api.nocaptcha.io/api/wanda/hcaptcha/preflight", {"sitekey": self.__api_key})
+        r = self.submit("https://api.nocaptcha.io/api/wanda/hcaptcha/preflight", {"sitekey": self.__api_key})
         return r['data']['preflight_uuid'], r['data']['data']['region']
 
     def hcaptcha_v2(self, site_key, href, region, proxy_data):
@@ -49,7 +46,7 @@ class NoCaptchaUtil:
             'proxy': proxy_data
         }
 
-        return self.submit('http://api.nocaptcha.cn/api/wanda/hcaptcha/v2', data)
+        return self.submit('https://api.nocaptcha.cn/api/wanda/hcaptcha/v2', data)
 
     def hcaptcha(self,
                  site_key: str,
@@ -75,7 +72,7 @@ class NoCaptchaUtil:
         if region: submit_data['region'] = region
         if preflight_uuid: submit_data['preflight_uuid'] = preflight_uuid
 
-        return self.submit('http://api.nocaptcha.io/api/wanda/hcaptcha/universal', submit_data)
+        return self.submit('https://api.nocaptcha.io/api/wanda/hcaptcha/universal', submit_data)
 
     def solve_recaptcha(self, referer: str,
                         sitekey: str,
@@ -103,8 +100,7 @@ class NoCaptchaUtil:
             "action": action,
             "proxy": proxy,
         }
-        print( data)
-        return self.submit("http://api.nocaptcha.io/api/wanda/recaptcha/enterprise", data)['data']['token']
+        return self.submit("https://api.nocaptcha.io/api/wanda/recaptcha/enterprise", data)['data']['token']
 
     def solve_cf_turnstile(self, url: str, sitekey: str, proxy: Optional[str] = None) -> Dict:
         """
@@ -123,9 +119,4 @@ class NoCaptchaUtil:
             "sitekey": sitekey,
             "proxy": proxy,
         }
-        print(data)
-        return self.submit("http://api.nocaptcha.io/api/wanda/cloudflare/universal", data)['data']['token']
-if __name__ == '__main__':
-    t = NoCaptchaUtil("e05b056e-3d13-494e-af0d-b934bff84220")
-    t.hcaptcha_v2("e8f86135-50b1-4b09-b467-55f97dbe0296", "http://mybooking.hkexpress.com", "HK",
-                  "http://user-rakduoapp01-region-HK-sessid-rakduoapp018642-sesstime-5-keep-true:rakduoapp01@62b659ab5b6af9b4.abc.as.roxlabs.vip:4600")
+        return self.submit("https://api.nocaptcha.io/api/wanda/cloudflare/universal", data)['data']['token']
