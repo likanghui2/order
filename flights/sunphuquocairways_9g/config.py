@@ -3,6 +3,12 @@ from common.errors.service_error import ServiceError, ServiceStateEnum
 
 class Config:
     API_BASE = "https://mobile-api.sunphuquocairways.com"
+    WEB_API_BASE = "https://api-des.sunphuquocairways.com"
+    WEB_ORIGIN = "https://fly.sunphuquocairways.com"
+    WEB_OAUTH_CLIENT_ID = "3XTOPo1GjNIbRaEKI0s6odi17C2aQfWX"
+    WEB_OAUTH_CLIENT_SECRET = "VJBFp5ejn4nAC7LV"
+    WEB_HCAPTCHA_SITE_KEY = "e94865c2-4231-4c25-9c6e-2b797b2b56cf"
+    WEB_HCAPTCHA_API_KEY = "00cf3281-7648-4678-8cb1-a03041030f40"
     USER_AGENT = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
@@ -25,6 +31,17 @@ class Config:
         "TWD": {"office_id": "TPE9G08MB", "accept_language": "en", "x_lang": "en"},
         "HKD": {"office_id": "HKG9G08MB", "accept_language": "tw", "x_lang": "tw"},
         "KRW": {"office_id": "SEL9G08MB", "accept_language": "en", "x_lang": "en"},
+    }
+
+    WEB_CURRENCY_COUNTRY_CODES = {
+        "VND": "VN",
+        "USD": "GL",
+        "KRW": "KR",
+        "TWD": "TW",
+        "HKD": "HK",
+        "THB": "TH",
+        "SGD": "SG",
+        "CNY": "CN",
     }
 
     PRODUCT_TAG = {
@@ -59,3 +76,11 @@ class Config:
         if context is None:
             raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, f"9GAPP不支持币种[{currency}]")
         return context.copy()
+
+    @classmethod
+    def web_currency_context(cls, currency: str) -> dict[str, str]:
+        normalized = str(currency or "VND").upper()
+        country_code = cls.WEB_CURRENCY_COUNTRY_CODES.get(normalized)
+        if country_code is None:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, f"9GWEB不支持币种[{currency}]")
+        return {"currency": normalized, "country_code": country_code}
