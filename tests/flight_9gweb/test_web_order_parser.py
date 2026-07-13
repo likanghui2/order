@@ -108,6 +108,13 @@ def test_order_parser_does_not_map_expired_or_failed_order_to_hold():
     assert WebOrderParser.parse(itinerary(ticket_status=None, order_status="FAILED")).order_state == OrderStateEnum.UNKNOWN
 
 
+@pytest.mark.parametrize("status", ["INACTIVE", "UNCONFIRMED", "NOT_CANCELLED"])
+def test_order_parser_does_not_use_status_substring_matches(status):
+    order = WebOrderParser.parse(itinerary(ticket_status=None, order_status=status))
+
+    assert order.order_state == OrderStateEnum.UNKNOWN
+
+
 def test_order_parser_attaches_purchased_baggage_to_passenger():
     data = itinerary()
     data["data"]["services"] = [

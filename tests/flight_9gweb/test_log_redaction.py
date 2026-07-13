@@ -1,6 +1,8 @@
 import json
 import importlib
 
+import pytest
+
 from common.decorators.http_log_decorator import http_log_decorator
 from common.model.response_info_model import ResponseInfoModel
 
@@ -33,6 +35,33 @@ def test_http_logger_redacts_card_and_authentication_data(monkeypatch):
     assert "secret-token" not in output
     assert "risk-token" not in output
     assert "************1111" in output
+
+
+def test_http_logger_redacts_form_secret_in_success_and_error_logs(monkeypatch):
+    captured = []
+    monkeypatch.setattr(
+        "common.decorators.http_log_decorator.lob_object.info",
+        lambda message, *args, **kwargs: captured.append(str(message)),
+    )
+    monkeypatch.setattr(
+        "common.decorators.http_log_decorator.lob_object.error",
+        lambda message, *args, **kwargs: captured.append(str(message)),
+    )
+
+    @http_log_decorator()
+    def send(_, fail=False, **kwargs):
+        if fail:
+            raise RuntimeError("request failed")
+        return response()
+
+    form = "grant_type=client_credentials&client_secret=TOPSECRET"
+    send(object(), url="https://example.com/oauth", headers={}, data=form)
+    with pytest.raises(RuntimeError):
+        send(object(), url="https://example.com/oauth", headers={}, data=form, fail=True)
+
+    output = " ".join(captured)
+    assert "TOPSECRET" not in output
+    assert "client_secret=[REDACTED]" in output
 
 
 def test_task_logger_redacts_payment_payload_before_validation(monkeypatch):

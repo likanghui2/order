@@ -60,16 +60,17 @@ class WebOrderParser:
     @classmethod
     def _order_state(cls, itinerary: dict, pnr: str | None, documents: list[dict]) -> OrderStateEnum:
         data = itinerary.get("data") or {}
-        status_text = " ".join(
-            str(data.get(key) or "")
+        status_values = {
+            str(data.get(key) or "").strip().upper()
             for key in ("status", "orderStatus", "bookingStatus", "state")
-        ).upper()
+            if str(data.get(key) or "").strip()
+        }
         warning_text = json.dumps(itinerary.get("warnings") or []).upper()
-        if any(value in status_text for value in ("CANCEL", "VOID", "DELETED")):
+        if status_values & {"CANCEL", "CANCELED", "CANCELLED", "VOID", "VOIDED", "DELETED"}:
             return OrderStateEnum.CANCEL
         if "NO OFFER FOUND IN ORDER" in warning_text:
             return OrderStateEnum.CANCEL
-        if any(value in status_text for value in ("EXPIRED", "FAILED", "REJECTED", "ERROR")):
+        if status_values & {"EXPIRED", "FAILED", "REJECTED", "ERROR"}:
             return OrderStateEnum.UNKNOWN
         if any(
             str(document.get("documentType") or "").lower() == "eticket"
@@ -78,9 +79,9 @@ class WebOrderParser:
         ):
             return OrderStateEnum.OPEN_FOR_USE
         valid_hold_statuses = {"CONFIRMED", "HOLD", "BOOKED", "PENDING", "ACTIVE"}
-        if any(value in status_text for value in valid_hold_statuses):
+        if status_values & valid_hold_statuses:
             return OrderStateEnum.HOLD
-        if not status_text.strip():
+        if not status_values:
             flight_statuses = {
                 str(flight.get("statusCode") or "").upper()
                 for bound in ((data.get("air") or {}).get("bounds") or [])

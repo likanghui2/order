@@ -25,6 +25,12 @@ _KEY_VALUE_PATTERN = re.compile(
     r"[\"']?\s*[:=]\s*[\"'])(?P<value>[^\"']*)(?P<suffix>[\"'])",
     re.IGNORECASE,
 )
+_FORM_VALUE_PATTERN = re.compile(
+    r"(?P<prefix>(?:^|[?&])(?P<key>cardNumber|card_number|pan|cardCVV|card_cvv|CVV|cvv|"
+    r"securityCode|security_code|authorization|x-d-token|client_secret|password|cookie|proxy)=)"
+    r"(?P<value>[^&#\s]*)",
+    re.IGNORECASE,
+)
 _BEARER_PATTERN = re.compile(r"(?i)Bearer\s+[A-Za-z0-9._~+/=-]+")
 _PAN_PATTERN = re.compile(r"(?<!\d)\d{12,19}(?!\d)")
 
@@ -55,7 +61,15 @@ def _redact_string(value: str) -> str:
         } else "[REDACTED]"
         return f"{match.group('prefix')}{replacement_value}{match.group('suffix')}"
 
+    def form_replacement(match: re.Match) -> str:
+        key = _normalized_key(match.group("key"))
+        replacement_value = _mask_card(match.group("value")) if key in {
+            _normalized_key(item) for item in _CARD_KEYS
+        } else "[REDACTED]"
+        return f"{match.group('prefix')}{replacement_value}"
+
     redacted = _KEY_VALUE_PATTERN.sub(replacement, value)
+    redacted = _FORM_VALUE_PATTERN.sub(form_replacement, redacted)
     redacted = _BEARER_PATTERN.sub("Bearer [REDACTED]", redacted)
     return _PAN_PATTERN.sub(lambda match: _mask_card(match.group(0)), redacted)
 
