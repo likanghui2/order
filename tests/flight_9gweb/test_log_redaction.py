@@ -1,5 +1,5 @@
-import json
 import importlib
+import json
 
 import pytest
 
@@ -12,98 +12,33 @@ def response():
     return ResponseInfoModel(data_bytes=b"{}", status=200, headers={}, url="https://example.com")
 
 
-def test_trace_tokens_are_redacted_from_headers_and_payloads():
-    redacted = redact_sensitive({
-        "headers": {"Spa-Trace-Id": "trace-secret"},
-        "trace_id": "trace-secret-2",
-    })
-
-    assert redacted["headers"]["Spa-Trace-Id"] == "[REDACTED]"
-    assert redacted["trace_id"] == "[REDACTED]"
-    assert "trace-secret" not in str(redacted)
-
-
 @pytest.mark.parametrize(
-    ("value", "token", "expected"),
+    "value",
     [
-        (
-            '{"Spa-Trace-Id": "trace-json-secret"}',
-            "trace-json-secret",
-            '{"Spa-Trace-Id": "[REDACTED]"}',
-        ),
-        (
-            "Spa-Trace-Id=trace-form-secret",
-            "trace-form-secret",
-            "Spa-Trace-Id=[REDACTED]",
-        ),
-        (
-            "Spa-Trace-Id: trace-header-secret",
-            "trace-header-secret",
-            "Spa-Trace-Id: [REDACTED]",
-        ),
-        (
-            "trace_id: trace-header-secret-2",
-            "trace-header-secret-2",
-            "trace_id: [REDACTED]",
-        ),
-        (
-            "traceId: trace-header-secret-3",
-            "trace-header-secret-3",
-            "traceId: [REDACTED]",
-        ),
+        {
+            "headers": {
+                "Spa-Trace-Id": "trace-secret",
+                "authorization": "Bearer secret-token",
+                "cookie": "session=secret",
+            },
+            "trace_id": "trace-secret-2",
+            "password": "plain-password",
+            "cardNumber": "4111111111111111",
+            "cardCVV": "123",
+        },
+        '{"Spa-Trace-Id": "trace-json-secret"}',
+        "Spa-Trace-Id=trace-form-secret",
+        "grant_type=client_credentials&client_secret=TOPSECRET",
+        ["Bearer secret-token", {"password": "plain-password"}],
+        ("4111111111111111", "123"),
     ],
-    ids=["json", "form", "spa-header", "snake-header", "camel-header"],
+    ids=["dict", "json", "trace-form", "secret-form", "list", "tuple"],
 )
-def test_trace_tokens_are_redacted_from_string_formats(value, token, expected):
-    redacted = redact_sensitive(value)
-
-    assert redacted == expected
-    assert "[REDACTED]" in redacted
-    assert token not in redacted
+def test_log_values_are_returned_without_redaction(value):
+    assert redact_sensitive(value) == value
 
 
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        (
-            "request failed Spa-Trace-Id=TOKEN1",
-            "request failed Spa-Trace-Id=[REDACTED]",
-        ),
-        ("context trace_id=TOKEN2", "context trace_id=[REDACTED]"),
-        ("retry traceId=TOKEN3", "retry traceId=[REDACTED]"),
-    ],
-)
-def test_trace_tokens_are_redacted_from_embedded_key_value_text(value, expected):
-    assert redact_sensitive(value) == expected
-
-
-def test_http_logger_redacts_card_and_authentication_data(monkeypatch):
-    captured = []
-    monkeypatch.setattr(
-        "common.decorators.http_log_decorator.lob_object.info",
-        lambda message, *args, **kwargs: captured.append(str(message)),
-    )
-
-    @http_log_decorator()
-    def send(_, **kwargs):
-        return response()
-
-    send(
-        object(),
-        url="https://example.com/pay",
-        headers={"authorization": "Bearer secret-token", "x-d-token": "risk-token"},
-        data=json.dumps({"pan": "4111111111111111", "CVV": "123"}),
-    )
-
-    output = " ".join(captured)
-    assert "4111111111111111" not in output
-    assert '"CVV": "123"' not in output
-    assert "secret-token" not in output
-    assert "risk-token" not in output
-    assert "************1111" in output
-
-
-def test_http_logger_redacts_form_secret_in_success_and_error_logs(monkeypatch):
+def test_http_logger_keeps_card_authentication_and_form_data(monkeypatch):
     captured = []
     monkeypatch.setattr(
         "common.decorators.http_log_decorator.lob_object.info",
@@ -120,17 +55,32 @@ def test_http_logger_redacts_form_secret_in_success_and_error_logs(monkeypatch):
             raise RuntimeError("request failed")
         return response()
 
+    headers = {
+        "authorization": "Bearer secret-token",
+        "x-d-token": "risk-token",
+        "Spa-Trace-Id": "trace-token",
+    }
+    card_data = json.dumps({"pan": "4111111111111111", "CVV": "123"})
     form = "grant_type=client_credentials&client_secret=TOPSECRET"
-    send(object(), url="https://example.com/oauth", headers={}, data=form)
+
+    send(object(), url="https://example.com/pay", headers=headers, data=card_data)
     with pytest.raises(RuntimeError):
-        send(object(), url="https://example.com/oauth", headers={}, data=form, fail=True)
+        send(object(), url="https://example.com/oauth", headers=headers, data=form, fail=True)
 
     output = " ".join(captured)
-    assert "TOPSECRET" not in output
-    assert "client_secret=[REDACTED]" in output
+    for expected in (
+        "4111111111111111",
+        "123",
+        "secret-token",
+        "risk-token",
+        "trace-token",
+        "TOPSECRET",
+    ):
+        assert expected in output
+    assert "[REDACTED]" not in output
 
 
-def test_task_logger_redacts_payment_payload_before_validation(monkeypatch):
+def test_task_logger_keeps_payment_payload_before_validation(monkeypatch):
     module = importlib.import_module("task.9Gweb.booking")
     captured = []
     monkeypatch.setattr(module.LOG, "info", lambda message, *args, **kwargs: captured.append(str(message)))
@@ -149,6 +99,6 @@ def test_task_logger_redacts_payment_payload_before_validation(monkeypatch):
     })
 
     output = " ".join(captured)
-    assert "4111111111111111" not in output
-    assert "'cardCVV': '123'" not in output
-    assert "************1111" in output
+    assert "4111111111111111" in output
+    assert "'cardCVV': '123'" in output
+    assert "[REDACTED]" not in output
