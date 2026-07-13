@@ -1,3 +1,5 @@
+import os
+
 from common.errors.service_error import ServiceError, ServiceStateEnum
 
 
@@ -5,10 +7,10 @@ class Config:
     API_BASE = "https://mobile-api.sunphuquocairways.com"
     WEB_API_BASE = "https://api-des.sunphuquocairways.com"
     WEB_ORIGIN = "https://fly.sunphuquocairways.com"
-    WEB_OAUTH_CLIENT_ID = "3XTOPo1GjNIbRaEKI0s6odi17C2aQfWX"
-    WEB_OAUTH_CLIENT_SECRET = "VJBFp5ejn4nAC7LV"
+    WEB_OAUTH_CLIENT_ID = os.environ.get("NINE_G_WEB_OAUTH_CLIENT_ID", "")
+    WEB_OAUTH_CLIENT_SECRET = os.environ.get("NINE_G_WEB_OAUTH_CLIENT_SECRET", "")
     WEB_HCAPTCHA_SITE_KEY = "e94865c2-4231-4c25-9c6e-2b797b2b56cf"
-    WEB_HCAPTCHA_API_KEY = "00cf3281-7648-4678-8cb1-a03041030f40"
+    WEB_HCAPTCHA_API_KEY = os.environ.get("NINE_G_WEB_HCAPTCHA_API_KEY", "")
     USER_AGENT = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"

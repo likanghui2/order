@@ -1,7 +1,10 @@
 from decimal import Decimal
 
+import pytest
+
 from common.enums.order_state_enum import OrderStateEnum
 from common.enums.ssr_type_enum import SsrTypeEnum
+from common.errors.service_error import ServiceError, ServiceStateEnum
 from flights.sunphuquocairways_9g.flight_common.web_order_parser import WebOrderParser
 
 
@@ -92,7 +95,17 @@ def test_order_parser_maps_unticketed_order_to_hold():
 
 def test_order_parser_maps_explicit_cancellation_and_unknown():
     assert WebOrderParser.parse(itinerary(ticket_status=None, order_status="CANCELLED")).order_state == OrderStateEnum.CANCEL
-    assert WebOrderParser.parse({"data": {}, "dictionaries": {}}).order_state == OrderStateEnum.UNKNOWN
+    unknown = itinerary(ticket_status=None, order_status="MYSTERY")
+    assert WebOrderParser.parse(unknown).order_state == OrderStateEnum.UNKNOWN
+
+    with pytest.raises(ServiceError) as error:
+        WebOrderParser.parse({"data": {}, "dictionaries": {}})
+    assert error.value.code == ServiceStateEnum.DATA_VALIDATION_FAILED.name
+
+
+def test_order_parser_does_not_map_expired_or_failed_order_to_hold():
+    assert WebOrderParser.parse(itinerary(ticket_status=None, order_status="EXPIRED")).order_state == OrderStateEnum.UNKNOWN
+    assert WebOrderParser.parse(itinerary(ticket_status=None, order_status="FAILED")).order_state == OrderStateEnum.UNKNOWN
 
 
 def test_order_parser_attaches_purchased_baggage_to_passenger():

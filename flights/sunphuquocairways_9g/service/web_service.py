@@ -49,6 +49,7 @@ class WebService:
         self._proxy_info = proxy_info
         self._currency = ""
         self._cardinal_factory = cardinal_factory or CardinalcommerceUtil
+        self._payment_methods_cache: dict[str, dict] = {}
 
     @property
     def script(self):
@@ -195,6 +196,21 @@ class WebService:
         baggage = self._script.get_baggage(pnr, last_name)
         return WebOrderParser.parse(itinerary, baggage)
 
+    def refresh_order_amount(self, pnr: str, last_name: str) -> tuple[Decimal, str]:
+        methods = self._script.payment_methods(pnr, last_name)
+        self._payment_methods_cache[pnr] = methods
+        data = methods.get("data") or {}
+        amount = data.get("remainingAmount") or {}
+        currency = str(amount.get("currencyCode") or "")
+        if amount.get("value") is None or not currency:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "remaining_amount")
+        decimal_places = int(
+            (((methods.get("dictionaries") or {}).get("currency") or {}).get(currency) or {}).get(
+                "decimalPlaces", 0
+            )
+        )
+        return Decimal(str(amount["value"])) / (Decimal(10) ** decimal_places), currency
+
     def pay_order(
         self,
         pnr: str,
@@ -211,7 +227,7 @@ class WebService:
         exp_month, exp_year = expiry
         last_name = passengers[0].last_name
 
-        methods = self._script.payment_methods(pnr, last_name)
+        methods = self._payment_methods_cache.pop(pnr, None) or self._script.payment_methods(pnr, last_name)
         methods_data = methods.get("data") or {}
         available = methods_data.get("availablePaymentMethods") or []
         pp_id = next(

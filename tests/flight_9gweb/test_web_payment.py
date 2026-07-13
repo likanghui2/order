@@ -65,8 +65,10 @@ class PaymentScript:
         self.add_payment_calls = 0
         self.payment_record_calls = 0
         self.itinerary_calls = 0
+        self.payment_method_calls = 0
 
     def payment_methods(self, pnr, last_name):
+        self.payment_method_calls += 1
         return {
             "data": {
                 "remainingAmount": {"value": 1250000, "currencyCode": "VND"},
@@ -117,6 +119,7 @@ def test_pay_order_submits_payment_once_and_returns_ticket_numbers():
     assert script.payment_action_names == ["load", "tdsinit", "add"]
     assert script.add_payment_calls == 1
     assert script.payment_record_calls == 1
+    assert script.payment_method_calls == 1
     assert script.itinerary_calls == 1
     assert [call[0] for call in cardinal.calls] == ["jwt", "render", "save"]
     assert result.order_state == OrderStateEnum.OPEN_FOR_USE
@@ -166,3 +169,15 @@ def test_ticket_polling_stops_after_five_attempts(monkeypatch):
     assert script.itinerary_calls == 5
     assert script.add_payment_calls == 1
     assert script.payment_record_calls == 1
+
+
+def test_refreshed_amount_reuses_payment_context_during_payment():
+    script = PaymentScript()
+    service, _ = payment_service(script)
+
+    amount, currency = service.refresh_order_amount("ABC123", "LOVELACE")
+    service.pay_order("ABC123", PASSENGERS, CONTACT, CARD)
+
+    assert amount == 1250000
+    assert currency == "VND"
+    assert script.payment_method_calls == 1

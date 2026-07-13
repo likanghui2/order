@@ -116,8 +116,9 @@ def request(payment_type="NO_PAY", **changes):
 
 
 class FakeService:
-    def __init__(self, seats=2):
+    def __init__(self, seats=2, baggage_added=False):
         self.journey = flight(seats)
+        self.baggage_added = baggage_added
         self.search_calls = []
         self.create_calls = 0
         self.baggage_calls = 0
@@ -141,6 +142,10 @@ class FakeService:
 
     def add_requested_baggage(self, pnr, passengers, last_name):
         self.baggage_calls += 1
+        return {"data": {}} if self.baggage_added else None
+
+    def refresh_order_amount(self, pnr, last_name):
+        return Decimal("1500000"), "VND"
 
     def pay_order(self, pnr, passengers, contact_info, payment_info):
         self.pay_calls += 1
@@ -148,6 +153,8 @@ class FakeService:
             pnr=pnr,
             orderState=OrderStateEnum.OPEN_FOR_USE,
             passengers=[passengers[0].model_copy(update={"ticket_number": "1234567890123"})],
+            totalAmount=Decimal("1300000"),
+            currencyCode="VND",
         )
         return paid
 
@@ -176,6 +183,16 @@ def test_card_booking_pays_once_and_returns_open_for_use():
     assert service.pay_calls == 1
     assert result.order_state == OrderStateEnum.OPEN_FOR_USE
     assert result.passengers[0].ticket_number == "1234567890123"
+    assert result.total_amount == Decimal("1300000")
+
+
+def test_booking_refreshes_total_after_adding_baggage():
+    service = FakeService(baggage_added=True)
+
+    result = module._run_booking(service, request(), ResponseOrderInfoModel())
+
+    assert result.total_amount == Decimal("1500000")
+    assert result.currency_code == "VND"
 
 
 def test_booking_validates_seats_before_creating_order():

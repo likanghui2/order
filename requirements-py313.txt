@@ -1,5 +1,6 @@
 annotated-types==0.7.0
 beautifulsoup4~=4.13.5
+celery>=5.5.0,<6.0.0
 certifi==2025.4.26
 charset-normalizer==3.4.2
 curl_cffi>=0.15.0

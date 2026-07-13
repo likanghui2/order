@@ -17,16 +17,16 @@ COMMON_ARGS=(
 
 case "$TASK_TYPE" in
   "search" | "verify")
-    exec celery -A task.9Gweb.search "${COMMON_ARGS[@]}" -Q "${PREFIX}-${TASK_TYPE}"
+    exec celery -A task.9Gweb.search:CELERY_APP "${COMMON_ARGS[@]}" -Q "${PREFIX}-${TASK_TYPE}"
     ;;
   "shamBooking")
-    exec celery -A task.9Gweb.sham_booking "${COMMON_ARGS[@]}" -Q "9GWEB-shamBooking"
+    exec celery -A task.9Gweb.sham_booking:CELERY_APP "${COMMON_ARGS[@]}" -Q "9GWEB-shamBooking"
     ;;
   "booking")
-    exec celery -A task.9Gweb.booking "${COMMON_ARGS[@]}" -Q "9GWEB-booking"
+    exec celery -A task.9Gweb.booking:CELERY_APP "${COMMON_ARGS[@]}" -Q "9GWEB-booking"
     ;;
   "orderDetail")
-    exec celery -A task.9Gweb.order_detail "${COMMON_ARGS[@]}" -Q "9GWEB-orderDetail"
+    exec celery -A task.9Gweb.order_detail:CELERY_APP "${COMMON_ARGS[@]}" -Q "9GWEB-orderDetail"
     ;;
   *)
     echo "Unknown task: ${TASK_TYPE}"

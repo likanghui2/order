@@ -11,6 +11,8 @@ import logging
 import threading
 from typing import Optional
 
+from common.utils.log_redaction import redact_sensitive
+
 LOCAL_DATA = threading.local()
 
 
@@ -54,21 +56,21 @@ class LogUtil:
             extra = {}
         extra['logName'] = name
         try:
-            self._log.info(msg=message, extra=extra)
+            self._log.info(msg=redact_sensitive(message), extra=extra)
         except Exception:
-            self._log.info(msg=message, extra=extra)
+            self._log.info(msg=redact_sensitive(message), extra=extra)
 
     def error(self, message: str, name: str = "", extra=None):
         if extra is None:
             extra = {}
         extra['logName'] = name
-        self._log.error(msg=message, extra=extra)
+        self._log.error(msg=redact_sensitive(message), extra=extra)
 
     def warning(self, message: str, name: str = "", extra=None):
         if extra is None:
             extra = {}
         extra['logName'] = name
-        self._log.warning(msg=message, extra=extra)
+        self._log.warning(msg=redact_sensitive(message), extra=extra)
 
     def add_log_name(self, log_name: Optional[str]):
         extra = {}

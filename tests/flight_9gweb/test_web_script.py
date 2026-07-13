@@ -75,7 +75,9 @@ def authenticated_script(*responses):
     return script
 
 
-def test_authenticate_solves_incapsula_and_requests_oauth():
+def test_authenticate_solves_incapsula_and_requests_oauth(monkeypatch):
+    monkeypatch.setattr(Config, "WEB_OAUTH_CLIENT_ID", "client-id")
+    monkeypatch.setattr(Config, "WEB_OAUTH_CLIENT_SECRET", "client-secret")
     tls = FakeTls([response({"access_token": "token-1"})])
     captcha = FakeCaptcha()
     script = WebScript(FakeProxy(), tls=tls, captcha=captcha, hcaptcha=FakeHcaptcha())
@@ -197,7 +199,8 @@ def test_no_flight_and_http_error_map_to_current_errors():
     assert http_error.value.code == ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY.name
 
 
-def test_solve_hcaptcha_submits_token_once():
+def test_solve_hcaptcha_submits_token_once(monkeypatch):
+    monkeypatch.setattr(Config, "WEB_HCAPTCHA_API_KEY", "captcha-key")
     hcaptcha = FakeHcaptcha()
     script = authenticated_script(response("<html>verified</html>", 200))
     script.hcaptcha = hcaptcha

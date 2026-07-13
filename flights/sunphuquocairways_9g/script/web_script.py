@@ -58,6 +58,11 @@ class WebScript:
         return f"eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.{payload}."
 
     def authenticate(self, currency: str) -> dict:
+        if not Config.WEB_OAUTH_CLIENT_ID or not Config.WEB_OAUTH_CLIENT_SECRET:
+            raise ServiceError(
+                ServiceStateEnum.DATA_VALIDATION_FAILED,
+                "缺少NINE_G_WEB_OAUTH_CLIENT_ID/NINE_G_WEB_OAUTH_CLIENT_SECRET",
+            )
         context = Config.web_currency_context(currency)
         self.currency = context["currency"]
         self.country_code = context["country_code"]
@@ -239,6 +244,11 @@ class WebScript:
     def solve_hcaptcha(self) -> None:
         if not self.incapsula_url:
             raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "9GWEB缺少人机验证地址")
+        if not Config.WEB_HCAPTCHA_API_KEY:
+            raise ServiceError(
+                ServiceStateEnum.DATA_VALIDATION_FAILED,
+                "缺少NINE_G_WEB_HCAPTCHA_API_KEY",
+            )
         result = self.hcaptcha.hcaptcha(
             site_key=Config.WEB_HCAPTCHA_SITE_KEY,
             referer="https://api-des.sunphuquocairways.com",

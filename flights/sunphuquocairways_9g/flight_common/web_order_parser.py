@@ -7,6 +7,7 @@ from common.enums.gender_enum import GenderEnum
 from common.enums.order_state_enum import OrderStateEnum
 from common.enums.passenger_type_enum import PassengerTypeEnum
 from common.enums.ssr_type_enum import SsrTypeEnum
+from common.errors.service_error import ServiceError, ServiceStateEnum
 from common.model.flight.flight_baggage_model import FlightBaggageModel
 from common.model.flight.flight_bundle_model import FlightBundleModel
 from common.model.flight.flight_bundle_price_model import FlightBundlePriceModel
@@ -26,6 +27,10 @@ class WebOrderParser:
         dictionaries = itinerary.get("dictionaries") or {}
         pnr = str(data.get("id") or "") or None
         documents = data.get("travelDocuments") or []
+        if not pnr:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "9GWEB订单响应缺少PNR")
+        if not data.get("travelers"):
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "9GWEB订单响应缺少乘客")
         passengers = cls._passengers(
             data.get("travelers") or [],
             documents,
@@ -34,6 +39,8 @@ class WebOrderParser:
         )
         journeys = cls._journeys(data.get("air") or {}, dictionaries)
         currency = cls._currency(data, dictionaries)
+        if not currency:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "9GWEB订单响应缺少币种")
         total_amount = cls._total_amount(data, dictionaries, currency)
         values = {
             "orderState": cls._order_state(itinerary, pnr, documents),
@@ -62,14 +69,25 @@ class WebOrderParser:
             return OrderStateEnum.CANCEL
         if "NO OFFER FOUND IN ORDER" in warning_text:
             return OrderStateEnum.CANCEL
+        if any(value in status_text for value in ("EXPIRED", "FAILED", "REJECTED", "ERROR")):
+            return OrderStateEnum.UNKNOWN
         if any(
             str(document.get("documentType") or "").lower() == "eticket"
             and str(document.get("status") or "").upper() in {"ISSUED", "OPEN", "OPEN_FOR_USE"}
             for document in documents
         ):
             return OrderStateEnum.OPEN_FOR_USE
-        if pnr and data.get("travelers"):
+        valid_hold_statuses = {"CONFIRMED", "HOLD", "BOOKED", "PENDING", "ACTIVE"}
+        if any(value in status_text for value in valid_hold_statuses):
             return OrderStateEnum.HOLD
+        if not status_text.strip():
+            flight_statuses = {
+                str(flight.get("statusCode") or "").upper()
+                for bound in ((data.get("air") or {}).get("bounds") or [])
+                for flight in bound.get("flights") or []
+            }
+            if flight_statuses and flight_statuses.issubset({"HK", "TK", "KK"}):
+                return OrderStateEnum.HOLD
         return OrderStateEnum.UNKNOWN
 
     @classmethod
@@ -272,6 +290,9 @@ class WebOrderParser:
         records = data.get("paymentRecords") or []
         transactions = (records[0].get("paymentTransactions") or []) if records else []
         amount = (transactions[0].get("amount") or {}) if transactions else {}
+        if not amount:
+            total_prices = ((((data.get("air") or {}).get("prices") or {}).get("totalPrices")) or [])
+            amount = (total_prices[0].get("total") or {}) if total_prices else {}
         return str(amount.get("currencyCode") or next(iter((dictionaries.get("currency") or {}).keys()), ""))
 
     @staticmethod
@@ -279,7 +300,12 @@ class WebOrderParser:
         records = data.get("paymentRecords") or []
         transactions = (records[0].get("paymentTransactions") or []) if records else []
         amount = (transactions[0].get("amount") or {}) if transactions else {}
-        value = amount.get("value") or 0
+        if not amount:
+            total_prices = ((((data.get("air") or {}).get("prices") or {}).get("totalPrices")) or [])
+            amount = (total_prices[0].get("total") or {}) if total_prices else {}
+        if amount.get("value") is None:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "9GWEB订单响应缺少金额")
+        value = amount["value"]
         decimal_places = int(((dictionaries.get("currency") or {}).get(currency) or {}).get("decimalPlaces", 0))
         return Decimal(str(value)) / (Decimal(10) ** decimal_places)
 

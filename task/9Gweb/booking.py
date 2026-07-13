@@ -84,7 +84,16 @@ def _run_booking(
     response.total_amount = booking.total_amount
     response.currency_code = booking.currency
 
-    service.add_requested_baggage(booking.pnr, booking.passengers, booking.passengers[0].last_name)
+    baggage_response = service.add_requested_baggage(
+        booking.pnr,
+        booking.passengers,
+        booking.passengers[0].last_name,
+    )
+    if baggage_response is not None:
+        response.total_amount, response.currency_code = service.refresh_order_amount(
+            booking.pnr,
+            booking.passengers[0].last_name,
+        )
 
     if str(booking_data.payment_info.type or "").upper() == "NO_PAY":
         return response
@@ -97,6 +106,10 @@ def _run_booking(
     )
     _copy_paid_tickets(response.passengers, paid.passengers)
     response.order_state = paid.order_state
+    if paid.total_amount:
+        response.total_amount = paid.total_amount
+    if paid.currency_code:
+        response.currency_code = paid.currency_code
     return response
 
 

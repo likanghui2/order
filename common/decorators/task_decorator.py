@@ -21,6 +21,7 @@ from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.model.task.response_search_info_model import ResponseSearchInfoModel
 from common.model.task.response_task_info_model import ResponseTaskInfoModel
 from common.utils.flight_util import FlightUtil
+from common.utils.log_redaction import redact_sensitive
 
 SUCCESS = 0
 
@@ -129,7 +130,7 @@ def task_decorator(log):
                     }
 
                 log.set_options(extra_option)
-                log.info(__data, '任务参数')
+                log.info(redact_sensitive(__data), '任务参数')
 
                 if __data['taskData'].get('callbackData') is None:
                     callback_data = {}
