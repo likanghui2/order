@@ -23,7 +23,10 @@ class FakeTls:
 
     def post(self, **kwargs):
         self.calls.append(kwargs)
-        return self.responses.pop(0)
+        result = self.responses.pop(0)
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
     def get(self, **kwargs):
         self.calls.append(kwargs)
@@ -49,6 +52,11 @@ class FakeTraceCache:
 
     def pop_ready(self):
         return self.ready.pop(0) if self.ready else None
+
+
+class FalsyTraceCache(FakeTraceCache):
+    def __bool__(self):
+        return False
 
 
 def response(data: dict, status: int = 200) -> ResponseInfoModel:
@@ -77,6 +85,14 @@ def test_signed_headers_use_exact_compact_body(monkeypatch):
     assert headers["X-Office-Id"] == "HAN9G08MB"
     assert headers["X-Timestamp"] == "1000"
     assert headers["X-Nonce"] == "abcdefghij"
+
+
+def test_constructor_preserves_injected_falsy_trace_cache():
+    cache = FalsyTraceCache()
+
+    script = AppScript(None, tls=FakeTls(), captcha=FakeCaptcha(), trace_cache=cache)
+
+    assert script._trace_cache is cache
 
 
 def test_search_builds_round_trip_payload_and_saves_trace_id_in_global_cache():
@@ -158,6 +174,57 @@ def test_create_and_hold_claim_one_cached_trace_token(monkeypatch):
         "cached-trace",
     ]
     assert cache.ready == []
+    assert script.trace_id is None
+    assert "Spa-Trace-Id" not in script.common_headers()
+
+
+@pytest.mark.parametrize(
+    ("create_result", "expected_error"),
+    [
+        (RuntimeError("network error"), RuntimeError),
+        (response({"success": False}), ServiceError),
+    ],
+    ids=["http-error", "response-error"],
+)
+def test_create_order_clears_claimed_trace_when_request_fails(
+    monkeypatch,
+    create_result,
+    expected_error,
+):
+    script = AppScript(
+        None,
+        tls=FakeTls([create_result]),
+        captcha=FakeCaptcha(),
+        trace_cache=FakeTraceCache(["cached-trace"]),
+    )
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    with pytest.raises(expected_error):
+        script.create_order(["trip-1"], [{"first_name": "ADA"}], [{"email": "a@example.com"}])
+
+    assert script.trace_id is None
+
+
+def test_hold_booking_clears_claimed_trace_when_request_fails(monkeypatch):
+    tls = FakeTls(
+        [
+            response({"success": True, "data": {"booking_id": "booking-1"}}),
+            response({"success": False}),
+        ]
+    )
+    script = AppScript(
+        None,
+        tls=tls,
+        captcha=FakeCaptcha(),
+        trace_cache=FakeTraceCache(["cached-trace"]),
+    )
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    script.create_order(["trip-1"], [{"first_name": "ADA"}], [{"email": "a@example.com"}])
+    with pytest.raises(ServiceError):
+        script.hold_booking("booking-1")
+
+    assert script.trace_id is None
 
 
 def test_create_order_rejects_empty_trace_pool_before_post(monkeypatch):

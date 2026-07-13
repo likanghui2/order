@@ -29,7 +29,7 @@ class AppScript:
         self._device_id = str(uuid.uuid4()).upper()
         self.trace_id = None
         self.timeout = 60
-        self._trace_cache = trace_cache or NineGAppTraceCache()
+        self._trace_cache = trace_cache if trace_cache is not None else NineGAppTraceCache()
 
     def initialize_session(self) -> None:
         self._tls.initialize(self._proxy_info, impersonate="chrome146")
@@ -135,29 +135,40 @@ class AppScript:
         accept_language: str = "en",
         x_lang: str = "en",
     ) -> dict:
-        trace_id = self._trace_cache.pop_ready()
-        if not trace_id:
-            raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "9GAPP暂无可用trace_id")
-        self.trace_id = trace_id
-        time.sleep(Config.CREATE_ORDER_WAIT_SECONDS)
-        token = self._captcha.incapsula_token_get(
-            verify_url=Config.INCAPSULA_URL,
-            proxy_data=self._proxy_info.get_proxy_info_to_string() if self._proxy_info else None,
-            host="fly.sunphuquocairways.com",
-            jwt_required=False,
-            user_agent=Config.USER_AGENT,
-        )
-        headers = self.common_headers(office_id, accept_language, x_lang)
-        headers["x-d-token"] = token
-        response = self._tls.post(
-            url=f"{Config.API_BASE}/booking/normal/create/order",
-            headers=headers,
-            data=self.compact_json(
-                {"trip_ids": trip_ids, "list_passenger": passenger_list, "list_contact": contact_list}
-            ),
-            timeout=self.timeout,
-        )
-        return self._check_response(response)
+        create_succeeded = False
+        try:
+            trace_id = self._trace_cache.pop_ready()
+            if not trace_id:
+                raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "9GAPP暂无可用trace_id")
+            self.trace_id = trace_id
+            time.sleep(Config.CREATE_ORDER_WAIT_SECONDS)
+            token = self._captcha.incapsula_token_get(
+                verify_url=Config.INCAPSULA_URL,
+                proxy_data=self._proxy_info.get_proxy_info_to_string() if self._proxy_info else None,
+                host="fly.sunphuquocairways.com",
+                jwt_required=False,
+                user_agent=Config.USER_AGENT,
+            )
+            headers = self.common_headers(office_id, accept_language, x_lang)
+            headers["x-d-token"] = token
+            response = self._tls.post(
+                url=f"{Config.API_BASE}/booking/normal/create/order",
+                headers=headers,
+                data=self.compact_json(
+                    {
+                        "trip_ids": trip_ids,
+                        "list_passenger": passenger_list,
+                        "list_contact": contact_list,
+                    }
+                ),
+                timeout=self.timeout,
+            )
+            data = self._check_response(response)
+            create_succeeded = True
+            return data
+        finally:
+            if not create_succeeded:
+                self.trace_id = None
 
     def hold_booking(
         self,
@@ -166,13 +177,16 @@ class AppScript:
         accept_language: str = "en",
         x_lang: str = "en",
     ) -> dict:
-        response = self._tls.post(
-            url=f"{Config.API_BASE}/booking/normal/create/hold-booking",
-            headers=self.common_headers(office_id, accept_language, x_lang),
-            data=self.compact_json({"booking_id": booking_id}),
-            timeout=self.timeout,
-        )
-        return self._check_response(response)
+        try:
+            response = self._tls.post(
+                url=f"{Config.API_BASE}/booking/normal/create/hold-booking",
+                headers=self.common_headers(office_id, accept_language, x_lang),
+                data=self.compact_json({"booking_id": booking_id}),
+                timeout=self.timeout,
+            )
+            return self._check_response(response)
+        finally:
+            self.trace_id = None
 
     @staticmethod
     def _check_response(response) -> dict:
