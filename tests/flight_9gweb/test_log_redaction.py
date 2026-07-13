@@ -5,10 +5,22 @@ import pytest
 
 from common.decorators.http_log_decorator import http_log_decorator
 from common.model.response_info_model import ResponseInfoModel
+from common.utils.log_redaction import redact_sensitive
 
 
 def response():
     return ResponseInfoModel(data_bytes=b"{}", status=200, headers={}, url="https://example.com")
+
+
+def test_trace_tokens_are_redacted_from_headers_and_payloads():
+    redacted = redact_sensitive({
+        "headers": {"Spa-Trace-Id": "trace-secret"},
+        "trace_id": "trace-secret-2",
+    })
+
+    assert redacted["headers"]["Spa-Trace-Id"] == "[REDACTED]"
+    assert redacted["trace_id"] == "[REDACTED]"
+    assert "trace-secret" not in str(redacted)
 
 
 def test_http_logger_redacts_card_and_authentication_data(monkeypatch):
