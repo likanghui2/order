@@ -28,5 +28,11 @@ def supported_sources() -> list[str]:
 
 
 def module_for_source(source: str, task_type: str = "shamBooking") -> str:
-    module_file = "search.py" if str(task_type or "").strip() == "search" else "sham_booking.py"
+    module_file = {
+        "search": "search.py",
+        "verify": "search.py",
+        "booking": "booking.py",
+        "orderDetail": "order_detail.py",
+        "shamBooking": "sham_booking.py",
+    }.get(str(task_type or "").strip(), "sham_booking.py")
     return source_modules(module_file).get(normalize_source(source), "")
