@@ -12,6 +12,7 @@ from common.model.proxy_Info_model import ProxyInfoModel
 from common.tls.curl_cffi_tls import CurlCffiTls
 from common.utils.danli_captcha_util import DanLiCaptchaUtil
 from flights.sunphuquocairways_9g.config import Config
+from flights.sunphuquocairways_9g.flight_common.app_trace_cache import NineGAppTraceCache
 
 
 class AppScript:
@@ -20,6 +21,7 @@ class AppScript:
         proxy_info: Optional[ProxyInfoModel] = None,
         tls=None,
         captcha=None,
+        trace_cache=None,
     ):
         self._proxy_info = proxy_info
         self._tls = tls or CurlCffiTls()
@@ -27,6 +29,7 @@ class AppScript:
         self._device_id = str(uuid.uuid4()).upper()
         self.trace_id = None
         self.timeout = 60
+        self._trace_cache = trace_cache or NineGAppTraceCache()
 
     def initialize_session(self) -> None:
         self._tls.initialize(self._proxy_info, impersonate="chrome146")
@@ -116,7 +119,11 @@ class AppScript:
             timeout=self.timeout,
         )
         data = self._check_response(response)
-        self.trace_id = data.get("trace_id")
+        trace_id = str(data.get("trace_id") or "").strip()
+        if not trace_id:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "9GAPP响应缺少trace_id")
+        self._trace_cache.save(trace_id)
+        self.trace_id = None
         return data
 
     def create_order(
@@ -128,6 +135,10 @@ class AppScript:
         accept_language: str = "en",
         x_lang: str = "en",
     ) -> dict:
+        trace_id = self._trace_cache.pop_ready()
+        if not trace_id:
+            raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "9GAPP暂无可用trace_id")
+        self.trace_id = trace_id
         time.sleep(Config.CREATE_ORDER_WAIT_SECONDS)
         token = self._captcha.incapsula_token_get(
             verify_url=Config.INCAPSULA_URL,
