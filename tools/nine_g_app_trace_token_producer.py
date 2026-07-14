@@ -30,11 +30,11 @@ SUPPORTED_TASK_TYPES = {"search", "shambooking"}
 @dataclass(frozen=True)
 class ProducerSettings:
     db_path: Path = APP_DIR / "local_sham_booking.db"
-    target_size: int = 20
-    batch_size: int = 1
-    interval_seconds: float = 2.0
-    idle_interval_seconds: float = 10.0
-    error_interval_seconds: float = 10.0
+    target_size: int = 20  # Redis 中 ready + warming Token 的目标库存数量
+    batch_size: int = 1  # 每轮最多新建多少个 Session 并查询生产 Token
+    interval_seconds: float = 2.0  # 成功生产一轮后，到下一轮生产前的等待秒数
+    idle_interval_seconds: float = 10.0  # 无任务、无代理或库存已满时的检查间隔秒数
+    error_interval_seconds: float = 10.0  # 生产失败或程序异常后的重试等待秒数
 
 
 @dataclass(frozen=True)
