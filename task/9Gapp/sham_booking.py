@@ -15,7 +15,6 @@ from flights.sunphuquocairways_9g.service.app_service import AppService
 
 CELERY_APP = celery_util.create(GlobalVariable.RABBITMQ_USERNAME, GlobalVariable.RABBITMQ_PASSWORD)
 LOG = log_util.LogUtil("sunPhuQuocAirwaysAppShamBooking")
-MAX_SEAT_COUNT = 5
 
 
 @CELERY_APP.task(bind=True)
@@ -27,58 +26,20 @@ def main(
 ):
     service = AppService(proxy_info_from_ext(sham_booking_data.ext))
     service.initialize_session()
-    product_tag = (sham_booking_data.ext or {}).get("productTag")
-
-    first_journeys = service.search(
-        dep_airport=sham_booking_data.dep_airport,
-        arr_airport=sham_booking_data.arr_airport,
-        dep_date=app_date(sham_booking_data.dep_date),
-        ret_date=None,
-        adt_number=1,
-        chd_number=0,
-        currency_code=sham_booking_data.booking_config.currency_code,
-        promo_code="",
-    )
-    first_matches = FlightUtil.number_filter(first_journeys, sham_booking_data.flight_number)
-    if len(first_matches) != 1:
-        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_FLIGHT_NUMBER, sham_booking_data.flight_number)
-    first_journey = first_matches[0]
-    if not first_journey.bundles:
-        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
-    first_bundles = first_journey.bundles
-    if sham_booking_data.cabin:
-        first_bundles = [bundle for bundle in first_bundles if bundle.cabin == sham_booking_data.cabin]
-        if not first_bundles:
-            current_cabins = "|".join(bundle.cabin or "" for bundle in first_journey.bundles)
-            raise ServiceError(
-                ServiceStateEnum.NO_AVAILABLE_CABIN,
-                sham_booking_data.cabin,
-                current_cabins,
-            )
-    if product_tag:
-        first_bundles = [bundle for bundle in first_bundles if bundle.product_tag == product_tag]
-    if not first_bundles:
-        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
-    first_bundle = first_bundles[0]
-    if first_bundle.seat <= 0:
-        raise ServiceError(
-            ServiceStateEnum.NO_AVAILABLE_CABIN,
-            sham_booking_data.cabin or "",
-            first_bundle.cabin or "",
-        )
-
-    seat_count = min(first_bundle.seat, MAX_SEAT_COUNT)
-    passengers = ShamBookingUtil.build_sham_passenger_info(seat_count, True)
-    contact_info = ShamBookingUtil.build_sham_contact_info()
-    contact_info.last_name = passengers[0].last_name
-    contact_info.first_name = passengers[0].first_name
+    ext = sham_booking_data.ext or {}
+    try:
+        passenger_count = int(ext.get("passengerCount", 1))
+    except (TypeError, ValueError):
+        raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "passengerCount")
+    if passenger_count <= 0:
+        raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "passengerCount")
 
     journeys = service.search(
         dep_airport=sham_booking_data.dep_airport,
         arr_airport=sham_booking_data.arr_airport,
         dep_date=app_date(sham_booking_data.dep_date),
         ret_date=None,
-        adt_number=seat_count,
+        adt_number=passenger_count,
         chd_number=0,
         currency_code=sham_booking_data.booking_config.currency_code,
         promo_code="",
@@ -99,16 +60,25 @@ def main(
                 sham_booking_data.cabin,
                 current_cabins,
             )
-    if product_tag:
-        bundles = [bundle for bundle in bundles if bundle.product_tag == product_tag]
     if not bundles:
         raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
     use_bundle = bundles[0]
-    if use_bundle.seat < seat_count:
+    if use_bundle.seat <= 0:
+        raise ServiceError(
+            ServiceStateEnum.NO_AVAILABLE_CABIN,
+            sham_booking_data.cabin or "",
+            use_bundle.cabin or "",
+        )
+    if use_bundle.seat < passenger_count:
         raise ServiceError(
             ServiceStateEnum.BUSINESS_ERROR,
-            f"余座不足，当前余座[{use_bundle.seat}]，目标人数[{seat_count}]",
+            f"余座不足，当前余座[{use_bundle.seat}]，目标人数[{passenger_count}]",
         )
+
+    passengers = ShamBookingUtil.build_sham_passenger_info(passenger_count, True)
+    contact_info = ShamBookingUtil.build_sham_contact_info()
+    contact_info.last_name = passengers[0].last_name
+    contact_info.first_name = passengers[0].first_name
 
     booking_id, pnr = service.create_and_hold(
         bundle=use_bundle,
@@ -125,7 +95,7 @@ def main(
     response_order_data.passengers = passengers
     response_order_data.contact_info = contact_info
     response_order_data.currency_code = use_bundle.price_info.currency
-    response_order_data.total_amount = Decimal(seat_count) * (
+    response_order_data.total_amount = Decimal(passenger_count) * (
         use_bundle.price_info.adult_ticket_price + use_bundle.price_info.adult_tax_price
     )
     return response_order_data

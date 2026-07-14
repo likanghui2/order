@@ -71,27 +71,29 @@ REQUEST = RequestShamBookingTaskDataModel(
     flightNumber="9G0123",
     cabin="Y",
     bookingConfig={"bookRate": 10, "currencyCode": "VND"},
-    ext={"productTag": "ECONOMY LITE"},
+    ext={"passengerCount": 3, "productTag": "DO NOT MATCH"},
 )
 
 
 class FakeService:
-    def __init__(self, first_seats=8, second_seats=5, flight_number="9G0123"):
-        self.responses = [make_journey(first_seats, flight_number), make_journey(second_seats, flight_number)]
+    def __init__(self, seats=5, flight_number="9G0123"):
+        self.journey = make_journey(seats, flight_number)
         self.search_adult_counts = []
         self.create_calls = 0
         self.created_passengers = None
+        self.created_bundle = None
 
     def initialize_session(self):
         pass
 
     def search(self, **kwargs):
         self.search_adult_counts.append(kwargs["adt_number"])
-        return [self.responses.pop(0)]
+        return [self.journey]
 
     def create_and_hold(self, bundle, passengers, contact_info, currency_code):
         self.create_calls += 1
         self.created_passengers = passengers
+        self.created_bundle = bundle
         return "booking-1", "ABC123"
 
 
@@ -105,23 +107,24 @@ def run_main(monkeypatch, service, request=REQUEST):
     return sham_module.main.run.__wrapped__(None, request, ResponseOrderInfoModel())
 
 
-def test_sham_booking_searches_twice_and_creates_one_pnr(monkeypatch):
-    service = FakeService(first_seats=8, second_seats=5)
+def test_sham_booking_searches_once_for_requested_passenger_count_and_creates_one_pnr(monkeypatch):
+    service = FakeService(seats=5)
 
     response = run_main(monkeypatch, service)
 
-    assert service.search_adult_counts == [1, 5]
+    assert service.search_adult_counts == [3]
     assert service.create_calls == 1
     assert response.order_number == "booking-1"
     assert response.pnr == "ABC123"
-    assert len(response.passengers) == 5
-    assert response.total_amount == Decimal("550")
+    assert len(response.passengers) == 3
+    assert response.total_amount == Decimal("330")
     assert response.order_state == OrderStateEnum.HOLD
     assert response.journeys[0].bundles[0].seat == 5
+    assert service.created_bundle.product_tag == "ECONOMY LITE"
 
 
-def test_sham_booking_does_not_create_when_second_search_has_fewer_seats(monkeypatch):
-    service = FakeService(first_seats=5, second_seats=3)
+def test_sham_booking_does_not_create_when_bundle_has_fewer_seats(monkeypatch):
+    service = FakeService(seats=2)
 
     with pytest.raises(ServiceError) as error:
         run_main(monkeypatch, service)
@@ -130,14 +133,14 @@ def test_sham_booking_does_not_create_when_second_search_has_fewer_seats(monkeyp
     assert service.create_calls == 0
 
 
-def test_sham_booking_rejects_zero_seats_without_second_search(monkeypatch):
-    service = FakeService(first_seats=0, second_seats=0)
+def test_sham_booking_rejects_zero_seats(monkeypatch):
+    service = FakeService(seats=0)
 
     with pytest.raises(ServiceError) as error:
         run_main(monkeypatch, service)
 
     assert error.value.code == ServiceStateEnum.NO_AVAILABLE_CABIN.name
-    assert service.search_adult_counts == [1]
+    assert service.search_adult_counts == [3]
     assert service.create_calls == 0
 
 
@@ -149,3 +152,13 @@ def test_sham_booking_rejects_non_matching_flight(monkeypatch):
 
     assert error.value.code == ServiceStateEnum.NO_AVAILABLE_FLIGHT_NUMBER.name
     assert service.create_calls == 0
+
+
+def test_sham_booking_defaults_to_one_passenger(monkeypatch):
+    service = FakeService(seats=5)
+    request = REQUEST.model_copy(update={"ext": {}})
+
+    response = run_main(monkeypatch, service, request)
+
+    assert service.search_adult_counts == [1]
+    assert len(response.passengers) == 1

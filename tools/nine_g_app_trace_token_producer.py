@@ -189,11 +189,15 @@ class TraceTokenProducer:
         currency_code = str(
             data.get("currencyCode") or booking_config.get("currencyCode") or "VND"
         ).strip().upper()
-        adult_count = max(1, int(data.get("adultNumber") or 1))
-        child_count = max(0, int(data.get("childNumber") or 0))
-        if task_type == "shambooking":
-            adult_count = 1
-            child_count = 0
+        try:
+            adult_count = max(1, int(data.get("adultNumber") or 1))
+            child_count = max(0, int(data.get("childNumber") or 0))
+            if task_type == "shambooking":
+                ext = data.get("ext") if isinstance(data.get("ext"), dict) else {}
+                adult_count = max(1, int(ext.get("passengerCount") or 1))
+                child_count = 0
+        except (TypeError, ValueError):
+            return None
         private_codes = data.get("privateCode")
         promo_code = str(private_codes[0]).strip() if isinstance(private_codes, list) and private_codes else ""
         return TraceSearchJob(

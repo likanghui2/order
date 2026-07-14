@@ -169,6 +169,7 @@ def test_active_tasks_supply_search_fields_and_enabled_proxy(tmp_path):
             "arrAirport": "SGN",
             "depDate": "2026-07-21",
             "bookingConfig": {"currencyCode": "USD"},
+            "ext": {"passengerCount": 4},
         },
     )
     add_proxy(db_path)
@@ -203,6 +204,7 @@ def test_active_tasks_supply_search_fields_and_enabled_proxy(tmp_path):
         ("PQC", "SGN", "2026-07-21T00:00:00.000")
     ]
     assert scripts[1].search_calls[0]["office_id"] == "WAS9G08MB"
+    assert scripts[1].search_calls[0]["adult_count"] == 4
 
 
 def test_full_pool_skips_database_and_network(tmp_path):
