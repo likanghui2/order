@@ -130,7 +130,7 @@ def test_search_rejects_response_without_trace_id():
     assert cache.saved == []
 
 
-def test_create_order_waits_gets_token_and_sends_it_once(monkeypatch):
+def test_create_order_pops_once_without_waiting(monkeypatch):
     tls = FakeTls([response({"success": True, "data": {"booking_id": "booking-1"}})])
     captcha = FakeCaptcha()
     script = AppScript(
@@ -149,9 +149,10 @@ def test_create_order_waits_gets_token_and_sends_it_once(monkeypatch):
         office_id="HAN9G08MB",
     )
 
-    assert waits == [Config.CREATE_ORDER_WAIT_SECONDS]
-    assert len(captcha.calls) == 1
-    assert tls.calls[0]["headers"]["x-d-token"] == "token-1"
+    assert waits == []
+    assert captcha.calls == []
+    assert tls.calls[0]["headers"]["Spa-Trace-Id"] == "cached-trace"
+    assert "x-d-token" not in tls.calls[0]["headers"]
     assert json.loads(tls.calls[0]["data"])["trip_ids"] == ["trip-1"]
 
 

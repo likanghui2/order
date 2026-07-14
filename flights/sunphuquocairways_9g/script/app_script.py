@@ -141,16 +141,7 @@ class AppScript:
             if not trace_id:
                 raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "9GAPP暂无可用trace_id")
             self.trace_id = trace_id
-            time.sleep(Config.CREATE_ORDER_WAIT_SECONDS)
-            token = self._captcha.incapsula_token_get(
-                verify_url=Config.INCAPSULA_URL,
-                proxy_data=self._proxy_info.get_proxy_info_to_string() if self._proxy_info else None,
-                host="fly.sunphuquocairways.com",
-                jwt_required=False,
-                user_agent=Config.USER_AGENT,
-            )
             headers = self.common_headers(office_id, accept_language, x_lang)
-            headers["x-d-token"] = token
             response = self._tls.post(
                 url=f"{Config.API_BASE}/booking/normal/create/order",
                 headers=headers,
