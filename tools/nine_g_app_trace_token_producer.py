@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import os
 import signal
 import sqlite3
 import sys
@@ -30,31 +29,12 @@ SUPPORTED_TASK_TYPES = {"search", "shambooking"}
 
 @dataclass(frozen=True)
 class ProducerSettings:
-    db_path: Path
+    db_path: Path = APP_DIR / "local_sham_booking.db"
     target_size: int = 20
     batch_size: int = 1
     interval_seconds: float = 2.0
     idle_interval_seconds: float = 10.0
     error_interval_seconds: float = 10.0
-
-    @classmethod
-    def from_env(cls) -> "ProducerSettings":
-        return cls(
-            db_path=Path(
-                os.getenv("LOCAL_SHAM_DB", str(APP_DIR / "local_sham_booking.db"))
-            ),
-            target_size=max(1, int(os.getenv("NINE_G_APP_TRACE_TARGET_SIZE", "20"))),
-            batch_size=max(1, int(os.getenv("NINE_G_APP_TRACE_BATCH_SIZE", "1"))),
-            interval_seconds=max(0.1, float(os.getenv("NINE_G_APP_TRACE_INTERVAL_SECONDS", "2"))),
-            idle_interval_seconds=max(
-                0.1,
-                float(os.getenv("NINE_G_APP_TRACE_IDLE_INTERVAL_SECONDS", "10")),
-            ),
-            error_interval_seconds=max(
-                0.1,
-                float(os.getenv("NINE_G_APP_TRACE_ERROR_INTERVAL_SECONDS", "10")),
-            ),
-        )
 
 
 @dataclass(frozen=True)
@@ -254,20 +234,9 @@ class TraceTokenProducer:
 def main() -> None:
     parser = argparse.ArgumentParser(description="9G App Trace Token 独立生产器")
     parser.add_argument("--once", action="store_true", help="只执行一轮后退出")
-    parser.add_argument("--db", type=Path, help="覆盖 LOCAL_SHAM_DB 数据库路径")
     args = parser.parse_args()
 
-    settings = ProducerSettings.from_env()
-    if args.db:
-        settings = ProducerSettings(
-            db_path=args.db,
-            target_size=settings.target_size,
-            batch_size=settings.batch_size,
-            interval_seconds=settings.interval_seconds,
-            idle_interval_seconds=settings.idle_interval_seconds,
-            error_interval_seconds=settings.error_interval_seconds,
-        )
-    producer = TraceTokenProducer(settings)
+    producer = TraceTokenProducer(ProducerSettings())
     if args.once:
         print(json.dumps(producer.warm_once(), ensure_ascii=False))
         return

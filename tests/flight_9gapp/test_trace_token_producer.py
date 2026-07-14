@@ -93,6 +93,17 @@ def settings(db_path: Path, **overrides):
     return ProducerSettings(**values)
 
 
+def test_producer_settings_use_fixed_local_defaults():
+    current = ProducerSettings()
+
+    assert current.db_path.name == "local_sham_booking.db"
+    assert current.target_size == 20
+    assert current.batch_size == 1
+    assert current.interval_seconds == 2.0
+    assert current.idle_interval_seconds == 10.0
+    assert current.error_interval_seconds == 10.0
+
+
 def test_no_active_9gapp_task_means_no_network_traffic(tmp_path):
     db_path = tmp_path / "tasks.db"
     create_db(db_path)
