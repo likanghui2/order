@@ -9,10 +9,9 @@ import pytest
 from app.source_registry import module_for_source
 from common.enums.freight_rate_type_enum import FreightRateTypeEnum
 from common.model.task.request_search_task_data_model import RequestSearchTaskDataModel
+from flights.sunphuquocairways_9g.flight_common.booking_utils import app_date
 
 search_module = importlib.import_module("task.9Gapp.search")
-_app_date = search_module._app_date
-_run_search = search_module._run_search
 
 
 def test_registry_discovers_9gapp_search():
@@ -29,12 +28,16 @@ def test_registry_discovers_9gapp_search():
     ],
 )
 def test_app_date_normalizes_current_task_dates(value, expected):
-    assert _app_date(value) == expected
+    assert app_date(value) == expected
 
 
-def test_run_search_maps_all_current_task_fields():
+def test_search_main_maps_all_current_task_fields(monkeypatch):
     service = Mock()
     service.search.return_value = ["journey"]
+    monkeypatch.setattr(search_module, "AppService", lambda proxy: service)
+    monkeypatch.setattr(search_module, "proxy_info_from_ext", lambda ext: "proxy")
+    monkeypatch.setattr(search_module.CACHE, "get_data", lambda: None)
+    monkeypatch.setattr(search_module.CACHE, "set_data", Mock())
     search_data = RequestSearchTaskDataModel(
         depAirport="SGN",
         arrAirport="PQC",
@@ -47,7 +50,10 @@ def test_run_search_maps_all_current_task_fields():
         privateCode=["SAVE"],
     )
 
-    assert _run_search(service, search_data) == ["journey"]
+    result = search_module.main.run.__wrapped__(None, search_data)
+
+    assert result == ["journey"]
+    service.initialize_session.assert_called_once_with()
     service.search.assert_called_once_with(
         dep_airport="SGN",
         arr_airport="PQC",
@@ -87,6 +93,17 @@ def test_9gapp_task_has_guarded_local_example(module_path, task_type):
     assert '"source": "9GAPP"' in source
     assert f'"taskType": "{task_type}"' in source
     assert "main({" in source
+
+
+@pytest.mark.parametrize(
+    "module_path",
+    [Path("task/9Gapp/search.py"), Path("task/9Gapp/sham_booking.py")],
+)
+def test_9gapp_task_keeps_the_complete_flow_in_main(module_path):
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    function_names = [node.name for node in tree.body if isinstance(node, ast.FunctionDef)]
+
+    assert function_names == ["main"]
 
 
 @pytest.mark.parametrize(

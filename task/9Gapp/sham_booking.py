@@ -1,79 +1,65 @@
 from decimal import Decimal
-from importlib import import_module
-from typing import Optional
 
 from common.decorators.task_decorator import task_decorator
 from common.enums.order_state_enum import OrderStateEnum
 from common.errors.service_error import ServiceError, ServiceStateEnum
 from common.global_variable import GlobalVariable
-from common.model.flight.flight_bundle_model import FlightBundleModel
-from common.model.flight.flight_journey_model import FlightJourneyModel
 from common.model.task.request_sham_booking_task_data_model import RequestShamBookingTaskDataModel
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util
 from common.utils.flight_util import FlightUtil
 from common.utils.proxy_ext_util import proxy_info_from_ext
 from common.utils.sham_booking_util import ShamBookingUtil
+from flights.sunphuquocairways_9g.flight_common.booking_utils import app_date
 from flights.sunphuquocairways_9g.service.app_service import AppService
-
-_app_date = import_module("task.9Gapp.search")._app_date
 
 CELERY_APP = celery_util.create(GlobalVariable.RABBITMQ_USERNAME, GlobalVariable.RABBITMQ_PASSWORD)
 LOG = log_util.LogUtil("sunPhuQuocAirwaysAppShamBooking")
 MAX_SEAT_COUNT = 5
 
 
-def _select_bundle(
-    journey: FlightJourneyModel,
-    cabin: Optional[str],
-    product_tag: Optional[str] = None,
-) -> FlightBundleModel:
-    if not journey.bundles:
-        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
-    bundles = journey.bundles
-    if cabin:
-        bundles = [bundle for bundle in bundles if bundle.cabin == cabin]
-        if not bundles:
-            current_cabins = "|".join(bundle.cabin or "" for bundle in journey.bundles)
-            raise ServiceError(ServiceStateEnum.NO_AVAILABLE_CABIN, cabin, current_cabins)
-    if product_tag:
-        bundles = [bundle for bundle in bundles if bundle.product_tag == product_tag]
-        if not bundles:
-            raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
-    if not bundles:
-        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
-    return bundles[0]
-
-
-def _search_target_journey(
-    service: AppService,
+@CELERY_APP.task(bind=True)
+@task_decorator(LOG)
+def main(
+    self,
     sham_booking_data: RequestShamBookingTaskDataModel,
-    seat_count: int,
-) -> FlightJourneyModel:
-    journeys = service.search(
+    response_order_data: ResponseOrderInfoModel,
+):
+    service = AppService(proxy_info_from_ext(sham_booking_data.ext))
+    service.initialize_session()
+    product_tag = (sham_booking_data.ext or {}).get("productTag")
+
+    first_journeys = service.search(
         dep_airport=sham_booking_data.dep_airport,
         arr_airport=sham_booking_data.arr_airport,
-        dep_date=_app_date(sham_booking_data.dep_date),
+        dep_date=app_date(sham_booking_data.dep_date),
         ret_date=None,
-        adt_number=seat_count,
+        adt_number=1,
         chd_number=0,
         currency_code=sham_booking_data.booking_config.currency_code,
         promo_code="",
     )
-    matches = FlightUtil.number_filter(journeys, sham_booking_data.flight_number)
-    if len(matches) != 1:
+    first_matches = FlightUtil.number_filter(first_journeys, sham_booking_data.flight_number)
+    if len(first_matches) != 1:
         raise ServiceError(ServiceStateEnum.NO_AVAILABLE_FLIGHT_NUMBER, sham_booking_data.flight_number)
-    return matches[0]
-
-
-def _run_sham_booking(
-    service: AppService,
-    sham_booking_data: RequestShamBookingTaskDataModel,
-    response_order_data: ResponseOrderInfoModel,
-) -> ResponseOrderInfoModel:
-    product_tag = (sham_booking_data.ext or {}).get("productTag")
-    first_journey = _search_target_journey(service, sham_booking_data, 1)
-    first_bundle = _select_bundle(first_journey, sham_booking_data.cabin, product_tag)
+    first_journey = first_matches[0]
+    if not first_journey.bundles:
+        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
+    first_bundles = first_journey.bundles
+    if sham_booking_data.cabin:
+        first_bundles = [bundle for bundle in first_bundles if bundle.cabin == sham_booking_data.cabin]
+        if not first_bundles:
+            current_cabins = "|".join(bundle.cabin or "" for bundle in first_journey.bundles)
+            raise ServiceError(
+                ServiceStateEnum.NO_AVAILABLE_CABIN,
+                sham_booking_data.cabin,
+                current_cabins,
+            )
+    if product_tag:
+        first_bundles = [bundle for bundle in first_bundles if bundle.product_tag == product_tag]
+    if not first_bundles:
+        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
+    first_bundle = first_bundles[0]
     if first_bundle.seat <= 0:
         raise ServiceError(
             ServiceStateEnum.NO_AVAILABLE_CABIN,
@@ -87,8 +73,37 @@ def _run_sham_booking(
     contact_info.last_name = passengers[0].last_name
     contact_info.first_name = passengers[0].first_name
 
-    journey = _search_target_journey(service, sham_booking_data, seat_count)
-    use_bundle = _select_bundle(journey, sham_booking_data.cabin, product_tag)
+    journeys = service.search(
+        dep_airport=sham_booking_data.dep_airport,
+        arr_airport=sham_booking_data.arr_airport,
+        dep_date=app_date(sham_booking_data.dep_date),
+        ret_date=None,
+        adt_number=seat_count,
+        chd_number=0,
+        currency_code=sham_booking_data.booking_config.currency_code,
+        promo_code="",
+    )
+    matches = FlightUtil.number_filter(journeys, sham_booking_data.flight_number)
+    if len(matches) != 1:
+        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_FLIGHT_NUMBER, sham_booking_data.flight_number)
+    journey = matches[0]
+    if not journey.bundles:
+        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
+    bundles = journey.bundles
+    if sham_booking_data.cabin:
+        bundles = [bundle for bundle in bundles if bundle.cabin == sham_booking_data.cabin]
+        if not bundles:
+            current_cabins = "|".join(bundle.cabin or "" for bundle in journey.bundles)
+            raise ServiceError(
+                ServiceStateEnum.NO_AVAILABLE_CABIN,
+                sham_booking_data.cabin,
+                current_cabins,
+            )
+    if product_tag:
+        bundles = [bundle for bundle in bundles if bundle.product_tag == product_tag]
+    if not bundles:
+        raise ServiceError(ServiceStateEnum.NO_AVAILABLE_BUNDLE)
+    use_bundle = bundles[0]
     if use_bundle.seat < seat_count:
         raise ServiceError(
             ServiceStateEnum.BUSINESS_ERROR,
@@ -114,18 +129,6 @@ def _run_sham_booking(
         use_bundle.price_info.adult_ticket_price + use_bundle.price_info.adult_tax_price
     )
     return response_order_data
-
-
-@CELERY_APP.task(bind=True)
-@task_decorator(LOG)
-def main(
-    self,
-    sham_booking_data: RequestShamBookingTaskDataModel,
-    response_order_data: ResponseOrderInfoModel,
-):
-    service = AppService(proxy_info_from_ext(sham_booking_data.ext))
-    service.initialize_session()
-    return _run_sham_booking(service, sham_booking_data, response_order_data)
 
 
 if __name__ == "__main__":

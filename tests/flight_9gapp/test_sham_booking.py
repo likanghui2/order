@@ -17,8 +17,6 @@ from common.model.task.request_sham_booking_task_data_model import RequestShamBo
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
 
 sham_module = importlib.import_module("task.9Gapp.sham_booking")
-_run_sham_booking = sham_module._run_sham_booking
-_select_bundle = sham_module._select_bundle
 
 
 def make_bundle(seat: int, cabin: str = "Y", product_tag: str = "ECONOMY LITE") -> FlightBundleModel:
@@ -84,6 +82,9 @@ class FakeService:
         self.create_calls = 0
         self.created_passengers = None
 
+    def initialize_session(self):
+        pass
+
     def search(self, **kwargs):
         self.search_adult_counts.append(kwargs["adt_number"])
         return [self.responses.pop(0)]
@@ -98,27 +99,16 @@ def test_registry_discovers_9gapp_sham_booking():
     assert module_for_source("9GAPP", "shamBooking") == "task.9Gapp.sham_booking"
 
 
-def test_select_bundle_matches_cabin_and_product():
-    journey = make_journey(5)
-    journey.bundles.append(make_bundle(5, cabin="C", product_tag="BUSINESS PRIME"))
-
-    selected = _select_bundle(journey, "Y", "ECONOMY LITE")
-
-    assert selected.cabin == "Y"
-    assert selected.product_tag == "ECONOMY LITE"
+def run_main(monkeypatch, service, request=REQUEST):
+    monkeypatch.setattr(sham_module, "AppService", lambda proxy: service)
+    monkeypatch.setattr(sham_module, "proxy_info_from_ext", lambda ext: "proxy")
+    return sham_module.main.run.__wrapped__(None, request, ResponseOrderInfoModel())
 
 
-def test_select_bundle_rejects_missing_product():
-    with pytest.raises(ServiceError) as error:
-        _select_bundle(make_journey(5), "Y", "BUSINESS PRIME")
-
-    assert error.value.code == ServiceStateEnum.NO_AVAILABLE_BUNDLE.name
-
-
-def test_sham_booking_searches_twice_and_creates_one_pnr():
+def test_sham_booking_searches_twice_and_creates_one_pnr(monkeypatch):
     service = FakeService(first_seats=8, second_seats=5)
 
-    response = _run_sham_booking(service, REQUEST, ResponseOrderInfoModel())
+    response = run_main(monkeypatch, service)
 
     assert service.search_adult_counts == [1, 5]
     assert service.create_calls == 1
@@ -130,32 +120,32 @@ def test_sham_booking_searches_twice_and_creates_one_pnr():
     assert response.journeys[0].bundles[0].seat == 5
 
 
-def test_sham_booking_does_not_create_when_second_search_has_fewer_seats():
+def test_sham_booking_does_not_create_when_second_search_has_fewer_seats(monkeypatch):
     service = FakeService(first_seats=5, second_seats=3)
 
     with pytest.raises(ServiceError) as error:
-        _run_sham_booking(service, REQUEST, ResponseOrderInfoModel())
+        run_main(monkeypatch, service)
 
     assert error.value.code == ServiceStateEnum.BUSINESS_ERROR.name
     assert service.create_calls == 0
 
 
-def test_sham_booking_rejects_zero_seats_without_second_search():
+def test_sham_booking_rejects_zero_seats_without_second_search(monkeypatch):
     service = FakeService(first_seats=0, second_seats=0)
 
     with pytest.raises(ServiceError) as error:
-        _run_sham_booking(service, REQUEST, ResponseOrderInfoModel())
+        run_main(monkeypatch, service)
 
     assert error.value.code == ServiceStateEnum.NO_AVAILABLE_CABIN.name
     assert service.search_adult_counts == [1]
     assert service.create_calls == 0
 
 
-def test_sham_booking_rejects_non_matching_flight():
+def test_sham_booking_rejects_non_matching_flight(monkeypatch):
     service = FakeService(flight_number="9G0999")
 
     with pytest.raises(ServiceError) as error:
-        _run_sham_booking(service, REQUEST, ResponseOrderInfoModel())
+        run_main(monkeypatch, service)
 
     assert error.value.code == ServiceStateEnum.NO_AVAILABLE_FLIGHT_NUMBER.name
     assert service.create_calls == 0
