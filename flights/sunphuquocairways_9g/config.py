@@ -23,7 +23,7 @@ class Config:
         "haue-bout-banesse-Ang-Macduff-thin-the-ren-mines/"
         "99r6vGt4eN2_abeJnkAe2gl28K_MRzNFUB3C6lQVNAg"
     )
-    CREATE_ORDER_WAIT_SECONDS = 30
+    CREATE_ORDER_WAIT_SECONDS = 1
 
     CURRENCY_CONTEXTS = {
         "VND": {"office_id": "HAN9G08MB", "accept_language": "vi", "x_lang": "vi"},

@@ -345,7 +345,7 @@ class WebService:
         # 如果将来有新方案，直接追加到这里即可
         if self.airline_pors in ['SGN-CAN', 'CAN-SGN']:
             strategies = [
-                # self.__web_script.get_google_token_no,  # 优先级 2: Google Token (降级)
+                self.__web_script.get_google_token_no,  # 优先级 2: Google Token (降级)
                 self.__web_script.get_google_token_danli,  # 优先级 1: EZ
             ]
         else:

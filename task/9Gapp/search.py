@@ -55,16 +55,17 @@ if __name__ == "__main__":
             "freightRateType": "PT",
             "privateCode": [],
             "ext": {
-                "proxy": {
-                    "host": "proxy.example.com",
-                    "port": 8080,
-                    "username": "YOUR_USERNAME",
-                    "password": "YOUR_PASSWORD",
-                    "region": "vn",
-                    "sessId": None,
-                    "sessionTime": 10,
-                    "format": "http://{username}:{password}@{host}:{port}",
-                },
+                "proxy":  {
+                        "source": "VJWEB",
+                        "host": "proxy.iproyal.net",
+                        "port": 9000,
+                        "username": "rakdvjweb01",
+                        "password": "rakdvjvj01",
+                        "region": "sg",
+                        "sessId": None,
+                        "sessionTime": 10,
+                        "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
+                    },
             },
         },
     }))

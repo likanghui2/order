@@ -244,7 +244,7 @@ if __name__ == '__main__':
             "taskData": {
                 "depAirport": "PEK",
                 "arrAirport": "BKK",
-                "depDate": "20260528",
+                "depDate": "20260728",
                 "flightNumber": "TG615",
                 "cabin": "00",
                 "bookingConfig": {
@@ -254,6 +254,22 @@ if __name__ == '__main__':
                 "callbackData": {
                     "callData": "",
                     "callUrl": "http://trip-api.bjrakd.com/triplex-foreign-external/external/task/pressureback/seatNewCallback"
+                },
+                'ext':{
+                    "usePassport": True,
+                    "pnrValidMinutes": 30,
+                    "passengerCount": 1,
+                    "proxy": {
+                        "source": "VJWEB",
+                        "host": "proxy.iproyal.net",
+                        "port": 9000,
+                        "username": "rakdvjweb01",
+                        "password": "rakdvjvj01",
+                        "region": "sg",
+                        "sessId": None,
+                        "sessionTime": 10,
+                        "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
+                    }
                 }
             }
         }

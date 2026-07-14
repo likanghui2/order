@@ -5,6 +5,8 @@ from typing import Optional
 from common.errors.service_error import ServiceError, ServiceStateEnum
 from common.model.proxy_Info_model import ProxyInfoModel
 from common.tls.curl_cffi_tls import CurlCffiTls
+from common.utils.ezcaptcha_util import EzCaptcha
+from common.utils.nocaptcha_util import NoCaptchaUtil
 from flights.thaiairways_tg.config import ThaiairwaysConfig
 
 
@@ -126,6 +128,40 @@ class WebScript:
         self.__check_response(response, 200)
         return response.to_dict()
 
+    def get_google_token_danli(self, referer: str):
+        try:
+            import requests
+
+            headers = {
+                'Content-Type': 'application/json',
+            }
+
+            json_data = {
+                'appid': '7j58fx77bifxt2jhx01pwoek7asgp6xm',
+                'host': referer,
+                'sitekey': '6LcpIwAtAAAAAJaO9P_bFyXj072vki3frfsmIisq',
+            }
+
+            response = requests.post('http://api.zjdanli.com/recaptcha/getTokenV3', headers=headers, json=json_data)
+            print(response.json())
+            return response.json()['data']
+        except Exception as e:
+            raise ServiceError(ServiceStateEnum.API_RESPONSE_FAILED)
+    @staticmethod
+    def initialize_ez_recaptcha(referer):
+        ez_captcha = EzCaptcha(client_key='a61ac9a3a6824569a584e10937a70ec0256199')
+        token = ez_captcha.solve_recaptcha(website_url=referer,
+                                           website_key="6LcpIwAtAAAAAJaO9P_bFyXj072vki3frfsmIisq",
+                                           task_type="ReCaptchaV3TaskProxyless")
+        return token
+
+    def get_google_token_no(self, referer: str):
+        no_captcha = NoCaptchaUtil(api_key='00cf3281-7648-4678-8cb1-a03041030f40', )
+        token = no_captcha.solve_recaptcha(referer=referer,
+                                           sitekey="6LcpIwAtAAAAAJaO9P_bFyXj072vki3frfsmIisq",
+                                           title='',
+                                           size="normal")
+        return token
     def www_orders(self, cart_id: str, travelers: list[dict]) -> dict:
         response = self.__tls.post(
             url='https://www.thaiairways.com/order/',
@@ -133,6 +169,11 @@ class WebScript:
             data=json.dumps({
                 "cartId": cart_id,
                 "travelers": travelers,
+                "recaptchaRequest": {
+                    "captchaResponse": self.get_google_token_no('https://www.thaiairways.com/booking/passenger-details/'),
+                    "version": "v3",
+                    "captchaMock": True
+                }
             }),
             timeout=60,
         )

@@ -102,7 +102,7 @@ class VJSessionCache:
     LUA_POP_READY_SCRIPT = """
     local key = KEYS[1]
     local now = tonumber(ARGV[1])
-    local items = redis.call('ZRANGE', key, '-inf', now, 'BYSCORE')
+    local items = redis.call('ZRANGEBYSCORE', key, '-inf', now)
 
     for _, item in ipairs(items) do
         local success, parsed = pcall(cjson.decode, item)

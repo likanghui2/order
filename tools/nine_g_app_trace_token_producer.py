@@ -33,8 +33,8 @@ _PRODUCER_THREAD: Optional[threading.Thread] = None
 @dataclass(frozen=True)
 class ProducerSettings:
     db_path: Path = APP_DIR / "local_sham_booking.db"
-    target_size: int = 20  # Redis 中 ready + warming Token 的目标库存数量
-    batch_size: int = 1  # 每轮最多新建多少个 Session 并查询生产 Token
+    target_size: int = 500  # Redis 中 ready + warming Token 的目标库存数量
+    batch_size: int = 5  # 每轮最多新建多少个 Session 并查询生产 Token
     interval_seconds: float = 2.0  # 成功生产一轮后，到下一轮生产前的等待秒数
     idle_interval_seconds: float = 10.0  # 无任务、无代理或库存已满时的检查间隔秒数
     error_interval_seconds: float = 10.0  # 生产失败或程序异常后的重试等待秒数
@@ -275,6 +275,7 @@ def producer_status() -> dict[str, bool]:
 
 
 def main() -> None:
+    print("9G App Trace Token 独立生产器启动中...")
     parser = argparse.ArgumentParser(description="9G App Trace Token 独立生产器")
     parser.add_argument("--once", action="store_true", help="只执行一轮后退出")
     args = parser.parse_args()

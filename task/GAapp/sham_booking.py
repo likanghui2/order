@@ -133,14 +133,14 @@ if __name__ == "__main__":
                     "proxy": {
                         "source": "VJAPP",
                         "configured": False,
-                        "host": "proxy.iproyal.net",
-                        "port": 9000,
-                        "username": "xiaohao1",
-                        "password": "lvwei8214786",
-                        "region": "jp",
+                        "host": "lite.flashproxy.io",
+                        "port": 6969,
+                        "username": "BHF6UsNS",
+                        "password": "X8ABIdpI",
+                        "region": "us",
                         "sessId": None,
                         "sessionTime": 10,
-                        "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
+                        "format": "http://{username}-country-{region}-time-{sess_time}-session-{session}:{password}@{host}:{port}"
                     }
                 }
             },

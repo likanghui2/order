@@ -53,37 +53,38 @@ if __name__ == '__main__':
     for  i in  range(10000000000):
         print( i)
         main({
-            "taskId": "123",
-            "taskType": TaskTypeEnum.SEARCH.value,
-            "source": "UOAPP",
-            "taskData": {
-                "callbackData": {
-                    "callData": "60|C"
-                },
-                "freightRateType": "PT",
-                "depAirport": "SGN",
-                "arrAirport": "CAN",
-                "depDate": "2026-07-29",
-                "retDate": "",
-                "adultNumber": 1,
-                "childNumber": 0,
-                "currencyCode": "USD",
-                    'ext': {
-                        "usePassport": True,
-                        "pnrValidMinutes": 30,
-                        "passengerCount": 9,
-                        "proxy": {
-                            "source": "VJAPP",
-                            "configured": False,
-                            "host": "proxy.iproyal.net",
-                            "port": 9000,
-                            "username": "xiaohao1",
-                            "password": "lvwei8214786",
-                            "region": "SG",
-                            "sessId": None,
-                            "sessionTime": 10,
-                            "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
-                        }
-                    }
+    "taskId": "VJWEB-HKG-SGN-VJ877-20260708-87028-SEARCH-RUN13653-39385f77",
+    "source": "VJWEB",
+    "taskType": "search",
+    "taskData": {
+        "callbackData": {
+            "callData": "",
+            "callUrl": ""
+        },
+        "freightRateType": "PT",
+        "depAirport": "HKG",
+        "arrAirport": "SGN",
+        "depDate": "2026-07-08",
+        "retDate": "",
+        "adultNumber": 1,
+        "childNumber": 0,
+        "currencyCode": "VND",
+        "flightNumber": "VJ877",
+        "cabin": "A",
+        "cabinLevel": "Y",
+        "privateCode": [],
+        "ext": {
+            "proxy": {
+                "source": "VJWEB",
+                "host": "proxy.iproyal.net",
+                "port": 9000,
+                "username": "rakdvjweb01",
+                "password": "rakdvjvj01",
+                "region": "sg",
+                "sessId": None,
+                "sessionTime": 10,
+                "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
             }
-        })
+        }
+    }
+})

@@ -97,3 +97,6 @@ class NineGAppTraceCache:
                 "9GAPP trace_id缓存不可用",
             ) from error
         return {"warming": warming, "ready": ready, "total": warming + ready}
+if __name__ == "__main__":
+    trace_cache = NineGAppTraceCache()
+    trace_cache.stats()

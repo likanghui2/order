@@ -37,15 +37,15 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
     def _search_and_validate(web_service, adult_count):
         # web_service.initialize_session()
 
-        if web_service.get_seesion_cached(
-                departure_place=sham_booking_data.dep_airport,
-                arrival=sham_booking_data.arr_airport,
-        ):
-            LOG.info(f'已缓存会话')
-        else:
-            LOG.info(f'开始缓存会话')
-            web_service.get_seesion(departure_place=sham_booking_data.dep_airport,
-                                    arrival=sham_booking_data.arr_airport, )
+        # if web_service.get_seesion_cached(
+        #         departure_place=sham_booking_data.dep_airport,
+        #         arrival=sham_booking_data.arr_airport,
+        # ):
+        #     LOG.info(f'已缓存会话')
+        # else:
+        #     LOG.info(f'开始缓存会话')
+        web_service.get_seesion(departure_place=sham_booking_data.dep_airport,
+                                arrival=sham_booking_data.arr_airport, )
         journey_list = web_service.search(
             dep_airport=sham_booking_data.dep_airport,
             arr_airport=sham_booking_data.arr_airport,
@@ -120,7 +120,7 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
             booking_journey = _search_and_validate(service, adult_count=passenger_count)
             booking_bundle = FlightUtil.bundle_verify(booking_journey, "Eco")
             LOG.info(f'第{attempt_no}次押位二次校验通过，舱位[{booking_bundle.cabin}]，余座[{booking_bundle.seat}]')
-            seat_count = min(9, booking_bundle.seat)
+            seat_count = passenger_count
             passengers: List[PassengerInfoModel] = ShamBookingUtil.build_sham_passenger_info(seat_count, True)
 
             order_data = copy.deepcopy(response_order_data)
@@ -156,10 +156,10 @@ if __name__ == '__main__':
                 "source": "VJAPP",
                 "taskType": "shamBooking",
                 "taskData": {
-                    "depAirport": "HAN",
+                    "depAirport": "HKG",
                     "arrAirport": "SGN",
-                    "depDate": "20260729",
-                    "flightNumber": "VJ159",
+                    "depDate": "20260709",
+                    "flightNumber": "VJ877",
                     "cabin": "",
                     "bookingConfig": {
                         "bookRate": 2,
@@ -174,13 +174,12 @@ if __name__ == '__main__':
                         "pnrValidMinutes": 30,
                         "passengerCount": 1,
                         "proxy": {
-                            "source": "VJAPP",
-                            "configured": False,
+                            "source": "VJWEB",
                             "host": "proxy.iproyal.net",
                             "port": 9000,
-                            "username": "xiaohao1",
-                            "password": "lvwei8214786",
-                            "region": "SG",
+                            "username": "rakdvjweb01",
+                            "password": "rakdvjvj01",
+                            "region": "sg",
                             "sessId": None,
                             "sessionTime": 10,
                             "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
