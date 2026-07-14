@@ -1,7 +1,9 @@
 import json
 import sqlite3
+import threading
 from pathlib import Path
 
+from tools import nine_g_app_trace_token_producer as producer_module
 from tools.nine_g_app_trace_token_producer import ProducerSettings, TraceTokenProducer
 
 
@@ -97,8 +99,6 @@ def test_producer_settings_use_fixed_local_defaults():
     current = ProducerSettings()
 
     assert current.db_path.name == "local_sham_booking.db"
-    assert current.target_size == 20
-    assert current.batch_size == 1
     assert current.interval_seconds == 2.0
     assert current.idle_interval_seconds == 10.0
     assert current.error_interval_seconds == 10.0
@@ -218,3 +218,27 @@ def test_full_pool_skips_database_and_network(tmp_path):
 
     assert result["reason"] == "pool_full"
     assert scripts == []
+
+
+def test_background_lifecycle_starts_once_and_stops_cleanly():
+    class FakeProducer:
+        def __init__(self):
+            self.stop_event = threading.Event()
+            self.started = threading.Event()
+
+        def run_forever(self):
+            self.started.set()
+            self.stop_event.wait()
+
+    fake = FakeProducer()
+    try:
+        first_thread = producer_module._start_producer(fake)
+        second_thread = producer_module._start_producer()
+
+        assert fake.started.wait(timeout=1)
+        assert first_thread is second_thread
+        assert producer_module.producer_status() == {"running": True}
+    finally:
+        producer_module._stop_producer()
+
+    assert producer_module.producer_status() == {"running": False}

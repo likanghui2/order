@@ -106,6 +106,13 @@ def test_9gapp_task_keeps_the_complete_flow_in_main(module_path):
     assert function_names == ["main"]
 
 
+def test_9gapp_task_does_not_start_trace_producer_during_import():
+    source = Path("task/9Gapp/sham_booking.py").read_text(encoding="utf-8")
+
+    assert "nine_g_app_trace_token_producer" not in source
+    assert "token_main" not in source
+
+
 @pytest.mark.parametrize(
     "module_path",
     [Path("task/9Gapp/search.py"), Path("task/9Gapp/sham_booking.py")],

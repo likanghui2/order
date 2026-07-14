@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from tools import vj_web_session_server
+from tools import nine_g_app_trace_token_producer, vj_web_session_server
 from tools.vj_web_session_server import get_vj_session
 from .runner import LocalRunner
 from .source_registry import module_for_source, normalize_source, supported_sources
@@ -78,6 +78,7 @@ runner = LocalRunner(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    nine_g_app_trace_token_producer._start_producer()
     vj_web_session_server._start_warmer()
     runner.start()
     try:
@@ -85,6 +86,7 @@ async def lifespan(app: FastAPI):
     finally:
         runner.stop()
         vj_web_session_server._stop_warmer()
+        nine_g_app_trace_token_producer._stop_producer()
 
 
 app = FastAPI(title="Local Sham Booking", lifespan=lifespan)
@@ -104,6 +106,7 @@ def health():
         "time": int(time.time()),
         "dbPath": str(DB_PATH),
         "runner": runner.stats(),
+        "nineGTraceProducer": nine_g_app_trace_token_producer.producer_status(),
     }
 
 

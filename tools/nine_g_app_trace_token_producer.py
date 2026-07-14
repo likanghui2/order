@@ -25,6 +25,9 @@ from flights.sunphuquocairways_9g.script.app_script import AppScript
 SOURCE = "9GAPP"
 ACTIVE_STATUS = "ACTIVE"
 SUPPORTED_TASK_TYPES = {"search", "shambooking"}
+_PRODUCER_LOCK = threading.RLock()
+_PRODUCER: Optional["TraceTokenProducer"] = None
+_PRODUCER_THREAD: Optional[threading.Thread] = None
 
 
 @dataclass(frozen=True)
@@ -85,6 +88,8 @@ class TraceTokenProducer:
         errors = []
         attempt_count = min(missing, self.settings.batch_size)
         for offset in range(attempt_count):
+            if self.stop_event.is_set():
+                break
             job = jobs[(self._job_cursor + offset) % len(jobs)]
             try:
                 script = self.script_factory(proxy_info)
@@ -229,6 +234,40 @@ class TraceTokenProducer:
             session_time=int(row["session_time"]) if row["session_time"] else None,
             format=str(row["format"]).strip(),
         )
+
+
+def _start_producer(producer: Optional[TraceTokenProducer] = None) -> threading.Thread:
+    global _PRODUCER, _PRODUCER_THREAD
+    with _PRODUCER_LOCK:
+        if _PRODUCER_THREAD and _PRODUCER_THREAD.is_alive():
+            return _PRODUCER_THREAD
+        _PRODUCER = producer or TraceTokenProducer(ProducerSettings())
+        _PRODUCER_THREAD = threading.Thread(
+            target=_PRODUCER.run_forever,
+            name="nine-g-app-trace-token-producer",
+            daemon=True,
+        )
+        _PRODUCER_THREAD.start()
+        return _PRODUCER_THREAD
+
+
+def _stop_producer() -> None:
+    global _PRODUCER, _PRODUCER_THREAD
+    with _PRODUCER_LOCK:
+        producer = _PRODUCER
+        thread = _PRODUCER_THREAD
+        if producer is not None:
+            producer.stop_event.set()
+    if thread and thread.is_alive():
+        thread.join(timeout=5)
+    with _PRODUCER_LOCK:
+        _PRODUCER = None
+        _PRODUCER_THREAD = None
+
+
+def producer_status() -> dict[str, bool]:
+    with _PRODUCER_LOCK:
+        return {"running": bool(_PRODUCER_THREAD and _PRODUCER_THREAD.is_alive())}
 
 
 def main() -> None:
