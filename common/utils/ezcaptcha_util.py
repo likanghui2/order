@@ -188,12 +188,14 @@ class EzCaptcha:
         return solution['gRecaptchaResponse']
 
     def solve_cf_turnstile(
-            self, website_url, website_key):
+            self, website_url, website_key, action=None):
         task = {
             "websiteURL": website_url,
             "type": "CloudFlareTurnstileTask",
             "websiteKey": website_key,
         }
+        if action:
+            task["rqData"] = {"metadataAction": action}
         task_id = self.create_async_task(task, ServiceStateEnum.API_RESPONSE_EXCEPTION, "cf_turnstile")
         solution = self.get_async_task_result(task_id, ServiceStateEnum.API_RESPONSE_EXCEPTION, "cf_turnstile", retries=30, delay=1)
 
