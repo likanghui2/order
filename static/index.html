@@ -146,6 +146,10 @@
               <span>舱位</span>
               <input id="cabin" maxlength="3" />
             </label>
+            <label class="form-field-price">
+              <span>价格区间</span>
+              <input id="priceInterval" placeholder="例如 100-180" inputmode="decimal" />
+            </label>
             <label class="form-field-delay">
               <span>查询延迟</span>
               <input id="intervalSeconds" data-default="30" type="number" min="1" />
@@ -203,6 +207,7 @@
                     <col class="import-col-date" />
                     <col class="import-col-flight" />
                     <col class="import-col-cabin" />
+                    <col class="import-col-price" />
                     <col class="import-col-delay" />
                     <col class="import-col-delay" />
                     <col class="import-col-currency" />
@@ -220,6 +225,7 @@
                       <th>日期</th>
                       <th>航班号</th>
                       <th>舱位</th>
+                      <th>价格区间</th>
                       <th>查询延迟</th>
                       <th>预计延迟</th>
                       <th>币种</th>
@@ -230,7 +236,7 @@
                     </tr>
                   </thead>
                   <tbody id="tableImportRows">
-                    <tr><td colspan="14" class="empty-row">暂无预览。</td></tr>
+                    <tr><td colspan="15" class="empty-row">暂无预览。</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -317,6 +323,7 @@
                   <col class="col-date" />
                   <col class="col-flight" />
                   <col class="col-cabin" />
+                  <col class="col-price" />
                   <col class="col-delay" />
                   <col class="col-delay" />
                   <col class="col-currency" />
@@ -338,6 +345,7 @@
                     <th class="cell-date">日期</th>
                     <th class="cell-flight">航班号</th>
                     <th class="cell-cabin">舱位</th>
+                    <th class="cell-price">价格区间</th>
                     <th class="cell-query-delay">查询延迟</th>
                     <th class="cell-book-delay">预计延迟</th>
                     <th class="cell-currency">币种</th>
@@ -455,6 +463,7 @@
                 <col class="pnr-col-flight" />
                 <col class="pnr-col-cabin" />
                 <col class="pnr-col-currency" />
+                <col class="pnr-col-price" />
                 <col class="pnr-col-airport" />
                 <col class="pnr-col-airport" />
                 <col class="pnr-col-date" />
@@ -473,6 +482,7 @@
                   <th>航班号</th>
                   <th>舱位</th>
                   <th>币种</th>
+                  <th>价格</th>
                   <th>出发地</th>
                   <th>目的地</th>
                   <th>日期</th>

@@ -29,8 +29,8 @@ STATIC_DIR = APP_DIR / "static"
 DB_PATH = Path(os.getenv("LOCAL_SHAM_DB", APP_DIR / "local_sham_booking.db"))
 MAX_TABLE_IMPORT_ROWS = 1001
 MAX_TABLE_IMPORT_COLUMNS = 50
-TABLE_IMPORT_HEADERS = ["Source", "出发地", "目的地", "日期", "航班号", "舱位", "查询延迟", "预计延迟", "币种", "人数", "PNR有效期", "护照"]
-TABLE_IMPORT_COLUMN_WIDTHS = [14, 12, 12, 14, 14, 10, 12, 12, 10, 12, 14, 10]
+TABLE_IMPORT_HEADERS = ["Source", "出发地", "目的地", "日期", "航班号", "舱位", "价格区间", "查询延迟", "预计延迟", "币种", "人数", "PNR有效期", "护照"]
+TABLE_IMPORT_COLUMN_WIDTHS = [14, 12, 12, 14, 14, 10, 14, 12, 12, 10, 12, 14, 10]
 
 
 class TaskPayload(BaseModel):
@@ -505,6 +505,7 @@ def _search_task_data_from_sham(task_data: dict[str, Any]) -> dict[str, Any]:
         "currencyCode": booking_config.get("currencyCode"),
         "flightNumber": task_data.get("flightNumber"),
         "cabin": task_data.get("cabin"),
+        "priceInterval": task_data.get("priceInterval"),
         "cabinLevel": ext.get("cabinLevel") or task_data.get("cabinLevel") or "Y",
         "privateCode": ext.get("privateCode") or task_data.get("privateCode") or [],
     }
@@ -636,6 +637,7 @@ def _table_import_row_from_task(task: dict[str, Any]) -> list[Any]:
         _format_dep_date(task_data.get("depDate")),
         task_data.get("flightNumber") or "",
         task_data.get("cabin") or "",
+        task_data.get("priceInterval") or "",
         task.get("interval_seconds") or "",
         booking_config.get("bookRate") or "",
         booking_config.get("currencyCode") or "",
@@ -668,8 +670,9 @@ def _export_use_passport(task_data: dict[str, Any]) -> bool:
 def _build_table_import_template() -> BytesIO:
     rows = [
         TABLE_IMPORT_HEADERS,
-        ["5JWEB", "SZX", "KUL", "2026-06-03", "AK127", "L", 30, 10, "MYR", "1-3", 120, "是"],
-        ["VJWEB", "CAN", "SGN", "2026-06-07", "VJ3909", "H", 30, 10, "VND", "1-1", 60, "是"],
+        ["5JWEB", "SZX", "KUL", "2026-06-03", "AK127", "L", "", 30, 10, "MYR", "1-3", 120, "是"],
+        ["VJWEB", "CAN", "SGN", "2026-06-07", "VJ3909", "H", "", 30, 10, "VND", "1-1", 60, "是"],
+        ["8MWEB", "RGN", "CAN", "2026-08-11", "8M711", "", "200-350", 30, 10, "USD", "1-1", 60, "是"],
     ]
     return _build_table_import_workbook(rows, "押位任务导入")
 

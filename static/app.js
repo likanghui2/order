@@ -133,6 +133,7 @@ const TABLE_IMPORT_COLUMNS = [
   { key: "depDate", label: "日期", aliases: ["日期", "出发日期", "depdate", "date"] },
   { key: "flightNumber", label: "航班号", aliases: ["航班号", "航班", "flight", "flightnumber"] },
   { key: "cabin", label: "舱位", aliases: ["舱位", "仓位", "cabin"] },
+  { key: "priceInterval", label: "价格区间", aliases: ["价格区间", "价格范围", "priceinterval", "pricerange"] },
   { key: "intervalSeconds", label: "查询延迟", aliases: ["查询延迟", "查询间隔", "interval", "intervalseconds"] },
   { key: "bookRate", label: "预计延迟", aliases: ["预计延迟", "预计延迟秒", "bookrate"] },
   { key: "currencyCode", label: "币种", aliases: ["币种", "货币", "currency", "currencycode"] },
@@ -192,6 +193,18 @@ function validateTaskForm() {
       if (!firstInvalid) firstInvalid = $(field.id);
     }
   }
+  if (value("source").toUpperCase() === "8MWEB") {
+    const priceInterval = value("priceInterval");
+    const priceMatch = priceInterval.match(/^\s*(\d+(?:\.\d+)?)\s*[-~至]\s*(\d+(?:\.\d+)?)\s*$/);
+    const validPriceInterval = Boolean(priceMatch) && Number(priceMatch[1]) <= Number(priceMatch[2]);
+    setTaskFieldInvalid("priceInterval", !validPriceInterval);
+    if (!validPriceInterval) {
+      errors.push("8MWEB 价格区间格式应为最低价-最高价");
+      if (!firstInvalid) firstInvalid = $("priceInterval");
+    }
+  } else {
+    clearTaskFieldInvalid("priceInterval");
+  }
   if (firstInvalid) firstInvalid.focus();
   return errors;
 }
@@ -227,6 +240,7 @@ function buildPayloadFromForm() {
     depDate: normalizeDate(value("depDate")),
     flightNumber: value("flightNumber").toUpperCase(),
     cabin: value("cabin").toUpperCase(),
+    priceInterval: value("priceInterval"),
     bookingConfig: {
       bookRate: numberOrDefault("bookRate"),
       currencyCode: currency.toUpperCase(),
@@ -581,6 +595,7 @@ function buildPayloadFromTableImport(raw) {
     depDate: normalizeDate(raw.depDate || value("depDate")),
     flightNumber: (raw.flightNumber || value("flightNumber")).toUpperCase(),
     cabin: (raw.cabin || value("cabin")).toUpperCase(),
+    priceInterval: raw.priceInterval || value("priceInterval"),
     bookingConfig: {
       bookRate: positiveNumber(raw.bookRate) || numberOrDefault("bookRate"),
       currencyCode: (raw.currencyCode || value("currencyCode")).toUpperCase(),
@@ -629,6 +644,10 @@ function validateTableImportPayload(payload, raw) {
   if (!payload.intervalSeconds || payload.intervalSeconds <= 0) errors.push("查询延迟无效");
   if (!taskData.bookingConfig?.bookRate || taskData.bookingConfig.bookRate <= 0) errors.push("预计延迟无效");
   if (!taskData.bookingConfig?.currencyCode) errors.push("缺少币种");
+  if (payload.source === "8MWEB") {
+    const priceMatch = String(taskData.priceInterval || "").match(/^\s*(\d+(?:\.\d+)?)\s*[-~至]\s*(\d+(?:\.\d+)?)\s*$/);
+    if (!priceMatch || Number(priceMatch[1]) > Number(priceMatch[2])) errors.push("价格区间格式错误");
+  }
   if (!payload.passengerRange) errors.push("缺少人数");
   const pnrValidText = String(raw.pnrValidMinutes || value("pnrValidMinutes") || "").trim();
   if (!pnrValidText) errors.push("缺少PNR有效期");
@@ -642,7 +661,7 @@ function renderTableImportPreview() {
   els.tableImportCount.textContent = items.length ? `${validCount} 行有效 / ${items.length} 行` : "选择表格文件后解析预览";
   els.tableImportSubmitBtn.disabled = validCount === 0;
   if (!items.length) {
-    els.tableImportRows.innerHTML = `<tr><td colspan="14" class="empty-row">暂无预览。</td></tr>`;
+    els.tableImportRows.innerHTML = `<tr><td colspan="15" class="empty-row">暂无预览。</td></tr>`;
     return;
   }
   els.tableImportRows.innerHTML = items.map(renderTableImportRow).join("");
@@ -668,6 +687,7 @@ function renderTableImportRow(item) {
       <td>${escapeHtml(formatDepDate(data.depDate))}</td>
       <td>${escapeHtml(data.flightNumber || "-")}</td>
       <td>${escapeHtml(data.cabin || "-")}</td>
+      <td>${escapeHtml(data.priceInterval || "-")}</td>
       <td>${escapeHtml(item.payload.intervalSeconds || "-")}</td>
       <td>${escapeHtml(data.bookingConfig?.bookRate || "-")}</td>
       <td>${escapeHtml(data.bookingConfig?.currencyCode || "-")}</td>
@@ -714,14 +734,14 @@ function renderTasks() {
     ? `${visibleRootCount} / ${rootCount} 个主任务`
     : childCount ? `${rootCount} 个主任务 / ${childCount} 个子任务` : `${rootCount} 个任务`;
   if (!state.tasks.length) {
-    els.taskRows.innerHTML = `<tr><td colspan="16" class="empty-row">暂无任务，填写上方信息后点击添加任务。</td></tr>`;
+    els.taskRows.innerHTML = `<tr><td colspan="17" class="empty-row">暂无任务，填写上方信息后点击添加任务。</td></tr>`;
     updateTaskBulkControls();
     return;
   }
   const rows = renderTaskTreeRows();
   els.taskRows.innerHTML = rows.length
     ? rows.join("")
-    : `<tr><td colspan="16" class="empty-row">没有符合筛选条件的任务。</td></tr>`;
+    : `<tr><td colspan="17" class="empty-row">没有符合筛选条件的任务。</td></tr>`;
   updateTaskBulkControls();
 }
 
@@ -918,7 +938,7 @@ function renderTaskRow(task, options = {}) {
           </div>
         </td>
         <td class="task-id-cell cell-task-id">${renderTaskIdCell(task.task_id)}</td>
-        <td class="child-result-cell" colspan="8">${renderChildResult(task)}</td>
+        <td class="child-result-cell" colspan="9">${renderChildResult(task)}</td>
         <td class="cell-people">${escapeHtml(passengerText)}</td>
         <td class="cell-runs">${escapeHtml(task.run_count || "-")}</td>
         <td class="cell-status">${renderStatusBadge(task)}</td>
@@ -949,6 +969,7 @@ function renderTaskRow(task, options = {}) {
       <td class="cell-date">${escapeHtml(formatDepDate(taskData.depDate))}</td>
       <td class="cell-flight">${escapeHtml(taskData.flightNumber || "-")}</td>
       <td class="cell-cabin">${escapeHtml(taskData.cabin || "-")}</td>
+      <td class="cell-price">${escapeHtml(taskData.priceInterval || "-")}</td>
       <td class="cell-query-delay">${escapeHtml(task.interval_seconds || "-")}</td>
       <td class="cell-book-delay">${escapeHtml(bookingConfig.bookRate || "-")}</td>
       <td class="cell-currency">${escapeHtml(bookingConfig.currencyCode || "-")}</td>
@@ -1171,7 +1192,7 @@ function renderPnrs() {
   els.pnrCount.textContent = total ? `${start}-${end} / ${total} 条` : "0 条";
   if (!rows.length) {
     const emptyText = hasActivePnrFilters() ? "没有符合筛选条件的 PNR。" : "暂无成功 PNR 记录。";
-    els.pnrRows.innerHTML = `<tr><td colspan="15" class="empty-row">${emptyText}</td></tr>`;
+    els.pnrRows.innerHTML = `<tr><td colspan="16" class="empty-row">${emptyText}</td></tr>`;
     renderPnrPagination();
     return;
   }
@@ -1185,6 +1206,7 @@ function renderPnrs() {
           <td>${escapeHtml(row.flightNumber)}</td>
           <td>${escapeHtml(row.cabin)}</td>
           <td>${escapeHtml(row.currencyCode || "-")}</td>
+          <td>${escapeHtml(row.price || "-")}</td>
           <td>${escapeHtml(row.depAirport)}</td>
           <td>${escapeHtml(row.arrAirport)}</td>
           <td>${escapeHtml(formatDepDate(row.depDate))}</td>
@@ -1601,6 +1623,7 @@ function copyTaskToForm(task) {
   $("depDate").value = formatDepDate(data.depDate);
   $("flightNumber").value = data.flightNumber || "";
   $("cabin").value = data.cabin || "";
+  $("priceInterval").value = data.priceInterval || "";
   $("intervalSeconds").value = task.interval_seconds || "";
   $("bookRate").value = booking.bookRate || "";
   $("passengerRange").value = task.passenger_range || (task.passenger_count ? `${task.passenger_count}-${task.passenger_count}` : "");
@@ -1819,6 +1842,7 @@ function bindEvents() {
     if (!els.logSection.classList.contains("hidden")) clearSelectedTask();
   });
   els.taskForm.addEventListener("submit", (event) => submitTask(event).catch(showError));
+  $("priceInterval").addEventListener("input", () => clearTaskFieldInvalid("priceInterval"));
   REQUIRED_TASK_FIELDS.forEach((field) => {
     const element = $(field.id);
     if (element) element.addEventListener(element.tagName === "SELECT" ? "change" : "input", () => clearTaskFieldInvalid(field.id));

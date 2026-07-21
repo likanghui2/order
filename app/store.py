@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -12,7 +13,7 @@ PAUSED = "PAUSED"
 STOPPED = "STOPPED"
 DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT = 20
 SETTING_PRECHECK_RESOURCE_MISS_LIMIT = "precheck_resource_miss_limit"
-PRECHECK_RESOURCE_MISS_REASONS = {"flightNotFound", "cabinNotFound", "noFlightData"}
+PRECHECK_RESOURCE_MISS_REASONS = {"flightNotFound", "cabinNotFound", "priceNotFound", "noFlightData"}
 PRECHECK_IGNORED_MISS_REASONS = {"searchFailed"}
 
 
@@ -92,6 +93,7 @@ class TaskStore:
                     flight_number TEXT,
                     cabin TEXT,
                     currency_code TEXT,
+                    price TEXT,
                     dep_airport TEXT,
                     arr_airport TEXT,
                     dep_date TEXT,
@@ -162,6 +164,7 @@ class TaskStore:
         existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(pnr_records)").fetchall()}
         column_sql = {
             "currency_code": "ALTER TABLE pnr_records ADD COLUMN currency_code TEXT",
+            "price": "ALTER TABLE pnr_records ADD COLUMN price TEXT",
         }
         for column, sql in column_sql.items():
             if column not in existing_columns:
@@ -329,15 +332,16 @@ class TaskStore:
             conn.execute(
                 """
                 INSERT INTO pnr_records (
-                    task_id, pnr, source, flight_number, cabin, currency_code,
+                    task_id, pnr, source, flight_number, cabin, currency_code, price,
                     dep_airport, arr_airport, dep_date, passenger_count, passengers, order_state, created_at,
                     expires_at, raw_result, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(task_id, pnr) DO UPDATE SET
                     source = excluded.source,
                     flight_number = excluded.flight_number,
                     cabin = excluded.cabin,
                     currency_code = excluded.currency_code,
+                    price = excluded.price,
                     dep_airport = excluded.dep_airport,
                     arr_airport = excluded.arr_airport,
                     dep_date = excluded.dep_date,
@@ -355,6 +359,7 @@ class TaskStore:
                     _clean_optional(row.get("flightNumber") or row.get("flight_number")),
                     _clean_optional(row.get("cabin")),
                     _clean_optional(row.get("currencyCode") or row.get("currency_code")),
+                    _clean_optional(row.get("price")),
                     _clean_optional(row.get("depAirport") or row.get("dep_airport")),
                     _clean_optional(row.get("arrAirport") or row.get("arr_airport")),
                     _clean_optional(row.get("depDate") or row.get("dep_date")),
@@ -472,7 +477,20 @@ class TaskStore:
             display_message = message
             display_result = result
             if is_search_precheck:
-                precheck_result = _search_precheck_result(result, task_data)
+                precheck_task_data = task_data
+                if (
+                    _normalize_match_text(row["source"]) == "8MWEB"
+                    and not task_data.get("priceInterval")
+                    and row["parent_task_id"]
+                ):
+                    parent_row = conn.execute(
+                        "SELECT task_data FROM tasks WHERE task_id = ?",
+                        (row["parent_task_id"],),
+                    ).fetchone()
+                    parent_task_data = self._decode_json(parent_row["task_data"]) if parent_row else {}
+                    if parent_task_data.get("priceInterval"):
+                        precheck_task_data = {**task_data, "priceInterval": parent_task_data["priceInterval"]}
+                precheck_result = _search_precheck_result(result, precheck_task_data, row["source"])
                 miss_limit = self._precheck_resource_miss_limit(conn)
                 released_count = 0
                 blocked_count = 0
@@ -921,6 +939,7 @@ class TaskStore:
             "flightNumber": row["flight_number"] or "-",
             "cabin": row["cabin"] or "-",
             "currencyCode": row["currency_code"] or "-",
+            "price": row["price"] or "-",
             "depAirport": row["dep_airport"] or "-",
             "arrAirport": row["arr_airport"] or "-",
             "depDate": row["dep_date"] or "-",
@@ -1021,7 +1040,7 @@ def _is_precheck_controlled_child(row: sqlite3.Row) -> bool:
     )
 
 
-def _search_precheck_result(result: Any, task_data: dict[str, Any]) -> dict[str, Any]:
+def _search_precheck_result(result: Any, task_data: dict[str, Any], source: str = "") -> dict[str, Any]:
     result_data = _as_dict(result)
     if _safe_int(result_data.get("status")) != 200:
         message = str(result_data.get("message") or "预检查询失败")
@@ -1042,6 +1061,9 @@ def _search_precheck_result(result: Any, task_data: dict[str, Any]) -> dict[str,
         }
     target_flight_number = _normalize_match_text(task_data.get("flightNumber"))
     target_cabin = _normalize_cabin_for_precheck(task_data.get("cabin"))
+    target_price_interval = str(task_data.get("priceInterval") or "").strip()
+    use_price_interval = _normalize_match_text(source) == "8MWEB"
+    price_range = _parse_precheck_price_interval(target_price_interval) if use_price_interval else None
     if not target_flight_number:
         return {
             "matched": False,
@@ -1050,16 +1072,41 @@ def _search_precheck_result(result: Any, task_data: dict[str, Any]) -> dict[str,
             "cabin": target_cabin,
             "message": "缺少目标航班号",
         }
+    if use_price_interval and price_range is None:
+        return {
+            "matched": False,
+            "reason": "missingTarget",
+            "flightNumber": target_flight_number,
+            "priceInterval": target_price_interval,
+            "message": "缺少有效的价格区间，格式应为最低价-最高价",
+        }
 
     data = _as_dict(result_data.get("data"))
     journeys = _as_list(data.get("journeys")) or _as_list(result_data.get("journeys"))
     flight_found = False
     available_cabins: list[str] = []
+    available_prices: list[float] = []
     for journey in journeys:
         journey_data = _as_dict(journey)
         if not _journey_has_flight_number(journey_data, target_flight_number):
             continue
         flight_found = True
+        if use_price_interval:
+            journey_prices = _journey_price_candidates(journey_data)
+            available_prices.extend(journey_prices)
+            minimum, maximum = price_range
+            matched_price = next((price for price in journey_prices if minimum <= price <= maximum), None)
+            if matched_price is not None:
+                return {
+                    "matched": True,
+                    "reason": "matched",
+                    "flightNumber": target_flight_number,
+                    "priceInterval": target_price_interval,
+                    "price": matched_price,
+                    "priceDisplay": _format_precheck_price(matched_price),
+                    "message": "匹配成功",
+                }
+            continue
         journey_cabins = _journey_cabin_candidates(journey_data)
         available_cabins.extend(journey_cabins)
         if not target_cabin:
@@ -1083,6 +1130,19 @@ def _search_precheck_result(result: Any, task_data: dict[str, Any]) -> dict[str,
                 "message": "匹配成功",
             }
     if flight_found:
+        if use_price_interval:
+            price_text = "、".join(_format_precheck_price(price) for price in available_prices) or "无"
+            return {
+                "matched": False,
+                "reason": "priceNotFound",
+                "flightNumber": target_flight_number,
+                "priceInterval": target_price_interval,
+                "availablePrices": available_prices,
+                "message": (
+                    f"航班 {target_flight_number} 已找到，但价格不在区间 {target_price_interval}；"
+                    f"当前价格：{price_text}"
+                ),
+            }
         return {
             "matched": False,
             "reason": "cabinNotFound",
@@ -1111,6 +1171,11 @@ def _precheck_display_message(
     miss_limit: int = DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT,
 ) -> str:
     if precheck_result.get("matched"):
+        if precheck_result.get("priceDisplay"):
+            return (
+                f"预检命中：航班 {precheck_result.get('flightNumber')} "
+                f"价格 {precheck_result.get('priceDisplay')}，已释放 {released_count} 个子任务"
+            )
         cabin_display = precheck_result.get("cabinDisplay") or precheck_result.get("cabin")
         return (
             f"预检命中：航班 {precheck_result.get('flightNumber')} "
@@ -1189,6 +1254,28 @@ def _journey_cabin_candidates(journey: dict[str, Any]) -> list[str]:
             for cabin in _split_cabin_candidates_ordered(bundle_data.get("cabin"))
         )
     return _unique_texts(cabins)
+
+
+def _parse_precheck_price_interval(value: str) -> Optional[tuple[float, float]]:
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*[-~至]\s*(\d+(?:\.\d+)?)\s*", value or "")
+    if not match:
+        return None
+    minimum, maximum = (float(item) for item in match.groups())
+    return (minimum, maximum) if minimum <= maximum else None
+
+
+def _journey_price_candidates(journey: dict[str, Any]) -> list[float]:
+    prices: list[float] = []
+    for bundle in _as_list(journey.get("bundles")):
+        price_info = _as_dict(_as_dict(bundle).get("priceInfo"))
+        price = _safe_float(price_info.get("adultTicketPrice"))
+        if price is not None:
+            prices.append(price)
+    return prices
+
+
+def _format_precheck_price(value: float) -> str:
+    return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
 def _format_cabin_with_seat(cabin: str, seat_value: Any) -> str:
@@ -1277,6 +1364,7 @@ def _pnr_record_from_task_result(
         "flightNumber": task_data.get("flightNumber") or "-",
         "cabin": _extract_cabin(result_data),
         "currencyCode": _extract_currency_code(result_data, task_data),
+        "price": _extract_price(result_data),
         "depAirport": task_data.get("depAirport") or "-",
         "arrAirport": task_data.get("arrAirport") or "-",
         "depDate": task_data.get("depDate") or "-",
@@ -1330,6 +1418,34 @@ def _extract_currency_code(result: dict[str, Any], task_data: dict[str, Any]) ->
         booking_config.get("currency"),
     ]
     return next((currency for currency in (_normalize_currency_code(item) for item in candidates) if currency), "-")
+
+
+def _extract_price(result: dict[str, Any]) -> str:
+    data = _as_dict(result.get("data"))
+    candidates = [
+        data.get("totalAmount"),
+        data.get("totalPrice"),
+        data.get("amount"),
+        _as_dict(data.get("reservation")).get("totalAmount"),
+        _as_dict(data.get("reservation")).get("totalPrice"),
+        _as_dict(data.get("order")).get("totalAmount"),
+        _as_dict(data.get("order")).get("totalPrice"),
+        _as_dict(data.get("booking")).get("totalAmount"),
+        _as_dict(data.get("booking")).get("totalPrice"),
+        result.get("totalAmount"),
+        result.get("totalPrice"),
+        result.get("amount"),
+    ]
+    for value in candidates:
+        if value is None or str(value).strip() in {"", "-"}:
+            continue
+        try:
+            return f"{float(value):.2f}"
+        except (TypeError, ValueError):
+            text = str(value).strip()
+            if text:
+                return text
+    return "-"
 
 
 def _normalize_currency_code(value: Any) -> str:

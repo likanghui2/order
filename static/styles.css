@@ -480,6 +480,10 @@ h2 {
   grid-column: span 1;
 }
 
+.inline-form .form-field-price {
+  grid-column: span 2;
+}
+
 .inline-form .form-field-delay {
   grid-column: span 2;
 }
@@ -794,6 +798,7 @@ textarea {
 
 .table-import-preview .import-col-airport,
 .table-import-preview .import-col-cabin,
+.table-import-preview .import-col-price,
 .table-import-preview .import-col-currency,
 .table-import-preview .import-col-people,
 .table-import-preview .import-col-passport {
@@ -874,6 +879,7 @@ table {
 }
 
 .task-table .col-cabin,
+.task-table .col-price,
 .task-table .col-currency,
 .task-table .col-people,
 .task-table .col-passport {
@@ -2030,6 +2036,10 @@ tbody tr.child-row.child-last td:nth-child(2)::before {
 
 .pnr-table .pnr-col-currency {
   width: 4%;
+}
+
+.pnr-table .pnr-col-price {
+  width: 5.5%;
 }
 
 .pnr-table .pnr-col-airport {
