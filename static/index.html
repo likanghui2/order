@@ -75,7 +75,12 @@
             <section class="config-block proxy-config-block">
               <div class="section-head compact-head">
                 <h2>数据源代理</h2>
-                <button id="proxyRefreshBtn" class="text-button" type="button">刷新配置</button>
+                <div class="proxy-config-actions">
+                  <button id="proxyImportBtn" class="text-button" type="button">导入</button>
+                  <button id="proxyExportBtn" class="text-button" type="button">导出</button>
+                  <button id="proxyRefreshBtn" class="text-button" type="button">刷新配置</button>
+                  <input id="proxyImportFile" class="hidden-field" type="file" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.txt" />
+                </div>
               </div>
               <div class="proxy-table-wrap">
                 <table class="proxy-table">

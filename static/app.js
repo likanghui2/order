@@ -79,6 +79,9 @@ const els = {
   precheckMissLimit: document.getElementById("precheckMissLimit"),
   settingsSaveBtn: document.getElementById("settingsSaveBtn"),
   sourceProxyRows: document.getElementById("sourceProxyRows"),
+  proxyImportBtn: document.getElementById("proxyImportBtn"),
+  proxyExportBtn: document.getElementById("proxyExportBtn"),
+  proxyImportFile: document.getElementById("proxyImportFile"),
   proxyRefreshBtn: document.getElementById("proxyRefreshBtn"),
   pnrRows: document.getElementById("pnrRows"),
   pnrCount: document.getElementById("pnrCount"),
@@ -303,6 +306,23 @@ async function loadTasks() {
 async function loadProxyConfigs() {
   state.proxyConfigs = await api("/api/source-proxies");
   renderProxyConfigs();
+}
+
+async function exportProxyConfigs() {
+  const response = await fetch("/api/source-proxies/export");
+  if (!response.ok) throw new Error((await response.text()) || "代理导出失败");
+  await downloadResponseBlob(response, "source-proxies.xlsx");
+  toast("代理配置已导出");
+}
+
+async function importProxyConfigs(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch("/api/source-proxies/import", { method: "POST", body: formData });
+  if (!response.ok) throw new Error((await response.text()) || "代理导入失败");
+  const result = await response.json();
+  toast(`已导入 ${result.count || 0} 条代理配置`);
+  await loadProxyConfigs();
 }
 
 function switchView(view) {
@@ -1776,6 +1796,14 @@ function bindEvents() {
   });
   els.refreshBtn.addEventListener("click", () => refreshAll().catch(showError));
   els.proxyRefreshBtn.addEventListener("click", () => loadProxyConfigs().catch(showError));
+  els.proxyImportBtn.addEventListener("click", () => els.proxyImportFile.click());
+  els.proxyExportBtn.addEventListener("click", () => exportProxyConfigs().catch(showError));
+  els.proxyImportFile.addEventListener("change", () => {
+    const file = els.proxyImportFile.files?.[0];
+    if (!file) return;
+    importProxyConfigs(file).catch(showError);
+    els.proxyImportFile.value = "";
+  });
   els.pnrRefreshBtn.addEventListener("click", () => loadPnrs(true, { page: state.pnrPage }).catch(showError));
   els.pnrPrevPageBtn.addEventListener("click", () => loadPnrs(false, { page: Math.max(1, state.pnrPage - 1) }).catch(showError));
   els.pnrNextPageBtn.addEventListener("click", () => loadPnrs(false, { page: state.pnrPage + 1 }).catch(showError));

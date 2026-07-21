@@ -31,6 +31,7 @@ MAX_TABLE_IMPORT_ROWS = 1001
 MAX_TABLE_IMPORT_COLUMNS = 50
 TABLE_IMPORT_HEADERS = ["Source", "出发地", "目的地", "日期", "航班号", "舱位", "价格区间", "查询延迟", "预计延迟", "币种", "人数", "PNR有效期", "护照"]
 TABLE_IMPORT_COLUMN_WIDTHS = [14, 12, 12, 14, 14, 10, 14, 12, 12, 10, 12, 14, 10]
+SOURCE_PROXY_HEADERS = ["Source", "启用", "代理 IP / Host", "端口", "用户名", "密码", "区域", "Session", "Format"]
 
 
 class TaskPayload(BaseModel):
@@ -131,6 +132,89 @@ def save_settings(request: AppSettingsPayload):
 @app.get("/api/source-proxies")
 def list_source_proxies():
     return [_proxy_response(item) for item in store.list_source_proxy_configs(supported_sources())]
+
+
+@app.get("/api/source-proxies/export")
+def export_source_proxies():
+    rows = [SOURCE_PROXY_HEADERS]
+    for item in store.list_source_proxy_configs(supported_sources()):
+        rows.append([
+            item.get("source") or "",
+            "是" if item.get("enabled") else "否",
+            item.get("host") or "",
+            item.get("port") or "",
+            item.get("username") or "",
+            item.get("password") or "",
+            item.get("region") or "",
+            item.get("session_time") or "",
+            item.get("format") or "",
+        ])
+    buffer = _build_table_import_workbook(rows, "数据源代理")
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="source-proxies.xlsx"'},
+    )
+
+
+@app.post("/api/source-proxies/import")
+async def import_source_proxies(file: UploadFile = File(...)):
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="代理文件为空")
+    rows = _parse_table_file(file.filename or "", content)
+    if not rows:
+        raise HTTPException(status_code=400, detail="代理文件没有可解析的数据")
+    normalized_headers = {
+        str(value).lower().replace(" ", "").replace("/", ""): index
+        for index, value in enumerate(rows[0])
+    }
+    aliases = {
+        "source": ("source", "数据源", "站点"),
+        "enabled": ("启用", "enabled", "是否启用"),
+        "host": ("代理ip/host", "代理ip", "host", "ip"),
+        "port": ("端口", "port"),
+        "username": ("用户名", "username", "user"),
+        "password": ("密码", "password", "pass"),
+        "region": ("区域", "region"),
+        "sessionTime": ("session", "sessiontime", "session时间"),
+        "format": ("format", "代理格式"),
+    }
+    header_map = {}
+    for key, names in aliases.items():
+        for name in names:
+            index = normalized_headers.get(name.lower().replace(" ", "").replace("/", ""))
+            if index is not None:
+                header_map[key] = index
+                break
+    has_header = "source" in header_map
+    data_rows = rows[1:] if has_header else rows
+    if not has_header:
+        header_map = {key: index for index, key in enumerate((
+            "source", "enabled", "host", "port", "username", "password", "region", "sessionTime", "format"
+        ))}
+    imported = []
+    for row in data_rows:
+        value = lambda key: row[header_map[key]].strip() if header_map.get(key, -1) < len(row) else ""
+        source = normalize_source(value("source"))
+        if not source:
+            continue
+        if source not in supported_sources():
+            raise HTTPException(status_code=400, detail=f"不支持的数据源：{source}")
+        payload = SourceProxyPayload(
+            enabled=str(value("enabled")).lower() in {"1", "true", "yes", "y", "是", "启用"},
+            host=value("host"),
+            port=int(value("port")) if value("port").isdigit() else None,
+            username=value("username"),
+            password=value("password"),
+            region=value("region"),
+            sessionTime=int(value("sessionTime")) if value("sessionTime").isdigit() else None,
+            format=value("format"),
+        )
+        imported.append(_proxy_response(store.upsert_source_proxy_config(
+            _normalize_source_proxy_payload(source, payload)
+        )))
+    return {"count": len(imported), "proxies": imported}
 
 
 @app.put("/api/source-proxies/{source}")

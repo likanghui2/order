@@ -1687,6 +1687,12 @@ tbody tr.child-row.child-last td:nth-child(2)::before {
   min-height: 260px;
 }
 
+.proxy-config-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .proxy-table {
   table-layout: fixed;
   min-width: 1390px;
