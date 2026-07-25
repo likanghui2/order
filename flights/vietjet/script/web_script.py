@@ -818,7 +818,6 @@ class WebScript:
          (ServiceStateEnum.HTTP_TIMEOUT, None),
          (ServiceStateEnum.ROBOT_CHECK, None)], retry_max_number=20)
     def reservations(self, data, authorization, request_id=None, session_id=None):
-        sleep(15)
         headers = {
             'accept': 'application/json',
             'accept-language': 'zh-cn',
