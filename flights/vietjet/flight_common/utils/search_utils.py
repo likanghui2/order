@@ -7,7 +7,7 @@ import time
 import uuid
 from datetime import date, timedelta, datetime
 from typing import Tuple
-from urllib.parse import quote_plus
+from urllib.parse import quote, quote_plus
 
 from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
@@ -93,6 +93,24 @@ class VietjetSearchUtils:
         signature = hashlib.sha256(query_str.encode("utf-8")).hexdigest()
         o["_signature"] = signature
         return o
+
+    @staticmethod
+    def add_search_signature(payload: dict) -> dict:
+        parts = []
+        for key in sorted(payload, key=lambda item: item.lower()):
+            encoded_key = quote(str(key), safe="-_.!~*'()")
+            value = payload[key]
+            values = value if isinstance(value, (list, tuple)) else [value]
+            for item in values:
+                if item is None:
+                    encoded_value = ""
+                elif isinstance(item, bool):
+                    encoded_value = "true" if item else "false"
+                else:
+                    encoded_value = quote(str(item), safe="-_.!~*'()")
+                parts.append(f"{encoded_key}={encoded_value}")
+        payload["_signature"] = hashlib.sha256("&".join(parts).encode("utf-8")).hexdigest()
+        return payload
 
     @staticmethod
     def add_reservations_signature(o: dict) -> dict:

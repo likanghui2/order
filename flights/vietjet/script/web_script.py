@@ -39,6 +39,15 @@ VJ_DEVICE_ID_PREFIX_RENDER_AES_KEY = "vj:web:x_device_id_prefix_render_aes_key"
 VJ_DEVICE_ID_PREFIX_TTL = 6 * 3600
 VJ_HOME_URL = "https://www.vietjetair.com"
 VJ_ORIGIN_URL = "https://www.vietjetair.com"
+VJ_DEVICE_ID_PARTS_URL = "http://vj.zjdanli.com/device_id"
+VJ_DEVICE_ID_PARTS_TTL = 10
+VJ_ZERO_TRUST_FALLBACK_KEY = "FALLBACK_ZERO_TRUST_KEY"
+VJ_POW_PROTECTED_PATHS = {
+    "/booking/api/v1/search-flight",
+    "/booking/api/v1/low-fare",
+    "/booking/api/v1/reservations",
+    "/booking/api/v1/get-session"
+}
 
 
 class WebScript:
@@ -53,14 +62,15 @@ class WebScript:
         self.__log = log_util.LogUtil('vietjetWebScript')
         self.__vj_device_uuid = str(uuid4())
         self.__zero_trust_config = None
+        self.__device_id_parts_cache = ("", "", 0.0)
         self.x_session_id = None
+        self.x_session_exp_in = None
         self.__danli_unlock = DanliUnlockTls("7j58fx77bifxt2jhx01pwoek7asgp6xm", site="vietjetair",
                                              auth_manage_cookie=False)
         self.__danli_unlock.initialize(proxy_info_data=self.__proxy)
 
     def device_id(self):
-        prefix = self.__get_device_id_prefix()
-        render_prefix = self.__get_device_id_prefix_render()
+        prefix, render_prefix = self.__get_device_id_parts()
         device_id_value, suffix = self.__build_device_id_value(render_prefix, self.__vj_device_uuid)
         x_device_id = f"{prefix}-{device_id_value}"
         if suffix:
@@ -71,35 +81,84 @@ class WebScript:
         self.___get_device_id_prefix(),
         self.___get_device_id_prefix_render()
 
-    def zero_trust_headers(self, url):
+    def zero_trust_headers(self, url, session_id=None, extra_signature_parts=None):
         if not self.__zero_trust_config:
-            self.__zero_trust_config = (
-                self.__get_device_id_prefix(),
-                self.__get_device_id_prefix_render()
-            )
+            self.__zero_trust_config = self.__get_device_id_parts()
         prefix, render_prefix = self.__zero_trust_config
         device_id_value, suffix = self.__build_device_id_value(render_prefix, self.__vj_device_uuid)
         x_device_id = f"{prefix}-{device_id_value}"
         if suffix:
             x_device_id = f"{x_device_id}-{suffix}"
 
-        signature_key = render_prefix or "FALLBACK_ZERO_TRUST_KEY"
+        signature_key = render_prefix or VJ_ZERO_TRUST_FALLBACK_KEY
         client_machine_id = hashlib.sha256(
             f"{self.__vj_device_uuid}{signature_key}".encode("utf-8")
         ).hexdigest()
         request_time = str(int(time.time() * 1000))
         request_nonce = str(uuid4())
-        signature_text = f"{url}:{request_time}:{client_machine_id}:{request_nonce}"
+        signature_parts = [url, request_time, client_machine_id, request_nonce]
+        if extra_signature_parts:
+            signature_parts.extend(str(item) for item in extra_signature_parts)
+        signature_text = ":".join(signature_parts)
         signature = hmac.new(signature_key.encode("utf-8"),
                              signature_text.encode("utf-8"),
                              hashlib.sha256).hexdigest()
-        return {
+
+        prefix = '0' * 4
+        nonce = 0
+        while True:
+            digest = hashlib.sha256(
+                f'{session_id}{request_time}{nonce}'.encode()
+            ).hexdigest()
+            if digest.startswith(prefix):
+                break
+            nonce += 1
+        headers = {
             "X-Device-ID": x_device_id,
             "X-Client-Machine-ID": client_machine_id,
             "X-Request-Time": request_time,
             "X-Request-Nonce": request_nonce,
             "X-Signature": signature
         }
+        if session_id:
+            if url in VJ_POW_PROTECTED_PATHS:
+                headers["X-Pow-Nonce"] = self.__pow_nonce(session_id, request_time)
+            headers["X-Session-Id"] = session_id
+        return headers
+
+    @staticmethod
+    def __pow_nonce(session_id, request_time, difficulty=4):
+        prefix = '0' * difficulty
+        nonce = 0
+        while True:
+            digest = hashlib.sha256(
+                f'{session_id}{request_time}{nonce}'.encode()
+            ).hexdigest()
+            if digest.startswith(prefix):
+                return str(nonce)
+            nonce += 1
+
+    def __get_device_id_parts(self):
+        now = time.time()
+        prefix, suffix, cached_at = getattr(
+            self, "_WebScript__device_id_parts_cache", ("", "", 0.0)
+        )
+        if prefix and now - cached_at < VJ_DEVICE_ID_PARTS_TTL:
+            return prefix, suffix
+
+        try:
+            data = requests.get(VJ_DEVICE_ID_PARTS_URL, timeout=5).json()
+            new_prefix = (data.get("prefix") or "").strip()
+            new_suffix = (data.get("suffix") or "").strip()
+            if new_prefix:
+                self.__device_id_parts_cache = (new_prefix, new_suffix, now)
+                return new_prefix, new_suffix
+        except Exception as exc:
+            self.__log.error(f"VietJet device-id parts refresh failed: {exc}")
+
+        if prefix:
+            return prefix, suffix
+        raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "获取 VietJet device-id parts 失败")
 
     @staticmethod
     def __build_device_id_value(render_prefix, device_uuid):
@@ -325,7 +384,7 @@ class WebScript:
 
     def reset_proxy_ip(self):
         self.__http_utils.initialize(self.__proxy)
-        self.__danli_unlock.initialize(proxy_info_data=self.__proxy)
+        self.__danli_unlock.initialize(proxy_info_data=None)
 
     @retry_decorator(
         [(ServiceStateEnum.API_RESPONSE_FAILED, None), (ServiceStateEnum.RESPONSE_STATE_ERROR, None)])
@@ -357,8 +416,6 @@ class WebScript:
     #     [(ServiceStateEnum.ROBOT_CHECK, token_macie), (ServiceStateEnum.AWS_CHECK_FAILURE, token_macie),
     #      (ServiceStateEnum.CURL_EXCEPTION, token_macie)])
     def get_seesion(self, request_id, departure_place, arrival):
-        if not self.__aws_token:
-            self.token_macie()
         headers = {
             'accept': 'application/json',
             'accept-language': 'zh-cn',
@@ -376,12 +433,10 @@ class WebScript:
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
             'user-agent': self.__ua,
-            "X-Aws-Waf-Token": self.__aws_token,
-            "X-Session-Id": self.x_session_id or "null",
         }
         headers.update(self.zero_trust_headers('/booking/api/v1/get-session'))
         params = {
-            "currency": "vnd",
+            "currency": "VND",
             "adultCount": 1,
             "childCount": 0,
             "infantCount": 0,
@@ -403,6 +458,7 @@ class WebScript:
             raise ServiceError(ServiceStateEnum.HTTP_RESPONSE_STATE_NOT_SATISFY, response.status)
         response_data = response.to_dict()
         self.x_session_id = response_data["sessionId"]
+        self.x_session_exp_in = response_data.get("sessionExpIn")
         return self.x_session_id
 
     def get_seesion_cached(self, departure_place, arrival):
@@ -421,9 +477,8 @@ class WebScript:
             return self.x_session_id
         return None
 
-    def search_flight(self, data):
-        if not self.__aws_token:
-            self.token_macie()
+    def search_flight(self, data, departure_place=None, arrival=None, currency=None,
+                      adult_count=0, child_count=0, infant_count=0):
         headers = {
             'accept': 'application/json',
             'accept-language': 'zh-cn',
@@ -441,13 +496,23 @@ class WebScript:
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
             'user-agent': self.__ua,
-            "X-Aws-Waf-Token": self.__aws_token,
             "X-Session-Id": self.x_session_id,
         }
-        headers.update(self.zero_trust_headers('/booking/api/v1/search-flight'))
+        signature_parts = None
+        if departure_place and arrival and currency:
+            signature_parts = [
+                f"{departure_place}-{arrival}",
+                currency,
+                adult_count + child_count + infant_count,
+            ]
+        headers.update(self.zero_trust_headers(
+            '/booking/api/v1/search-flight',
+            session_id=self.x_session_id,
+            extra_signature_parts=signature_parts,
+        ))
         params = {"encrypted": data}
         response = self.__danli_unlock.patch(url='https://vietjet-api.vietjetair.com/booking/api/v1/search-flight',
-                                           headers=headers, data=params, timeout=self.__timeout)
+                                             headers=headers, data=params, timeout=self.__timeout)
 
         if response.status == 403:
             raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
@@ -753,6 +818,7 @@ class WebScript:
          (ServiceStateEnum.HTTP_TIMEOUT, None),
          (ServiceStateEnum.ROBOT_CHECK, None)], retry_max_number=20)
     def reservations(self, data, authorization, request_id=None, session_id=None):
+        sleep(15)
         headers = {
             'accept': 'application/json',
             'accept-language': 'zh-cn',
@@ -771,11 +837,11 @@ class WebScript:
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
             'user-agent': self.__ua,
-            "X-Session-Id":self.x_session_id
+            "X-Session-Id": self.x_session_id
             # "Authorization": f"Bearer {authorization}" if authorization else "",
             # "X-Aws-Waf-Token": self.__aws_token,
         }
-        headers.update(self.zero_trust_headers('/booking/api/v1/reservations'))
+        headers.update(self.zero_trust_headers('/booking/api/v1/reservations', session_id=session_id))
         params = {"encrypted": data}
         url = 'https://vietjet-api.vietjetair.com/booking/api/v1/reservations'
         query = {}

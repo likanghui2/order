@@ -81,24 +81,34 @@ class WebService:
             "oneway": oneway,
             "adultCount": adt_number,
             "childCount": chd_number,
+            "company": "",
             "promoCode": '',
-            "infantCount": 0,
+            "refCode": "",
+            "infantCount": infant_count,
             "returnDate": return_date,
             "daysBeforeReturn": 0,
             "daysAfterReturn": 0,
             "requestId": request_id,
             "sessionId": self.__web_script.x_session_id,
-            "user-agent-ls-data": self.__t["user-agent-ls-data"],
-            "x-power-web-s-d": self.__t["x-power-web-s-d"],
+            "user-agent-ls-data": None,
+            "x-power-web-s-d": "false-false-undefined",
         }
         self.airline_pors = f"{o_data['departurePlace']}-{o_data['arrival']}"
 
-        add_signature = VietjetSearchUtils.add_signature(o_data)
+        add_signature = VietjetSearchUtils.add_search_signature(o_data)
         data = VietjetSearchUtils.encrypt(add_signature)
         city_code = dep_airport + '-' + arr_airport
         if not is_hold:
             special_baggage_data = self.__web_script.journey_config(request_id=request_id, city_code=city_code)
-        flight_data = self.__web_script.search_flight(data)
+        flight_data = self.__web_script.search_flight(
+            data,
+            departure_place=dep_airport,
+            arrival=arr_airport,
+            currency=currency_code,
+            adult_count=adt_number,
+            child_count=chd_number,
+            infant_count=infant_count,
+        )
         new_session_id = flight_data['sessionId']
         if (self.__session_id
                 and self.__session_has_client_machine_id(self.__session_id)

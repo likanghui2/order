@@ -474,63 +474,7 @@ def _warm_one_session(
 ) -> dict[str, Any]:
     request_id = _request_id_get()
     script = WebScript(proxy_info=proxy_info)
-
-    # ---------------------------------------------
-    # 核心复用：从全局管理器获取 WAF Token，极大提升速度
-    # ---------------------------------------------
-    token, ua = GLOBAL_WAF_TOKEN_MANAGER.get_token(script)
-
-    # 强行注入私有变量。如果不修改 WebScript 源码，此举不可省略。
-    setattr(script, "_WebScript__aws_token", token)
-    setattr(script, "_WebScript__ua", ua)
-    # ---------------------------------------------
-
-    headers = {
-        "accept-encoding": "gzip, deflate, br, zstd",
-        "user-agent": ua,
-        "accept": "application/json",
-        "accept-language": "zh-cn",
-        "content-type": "application/json",
-        "referer": "https://www.vietjetair.com/",
-        "content-language": "zh-cn",
-        "X-Session-Id": "null",
-        "X-Aws-Waf-Token": token,
-        "origin": "https://www.vietjetair.com",
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-site",
-        "connection": "keep-alive",
-        "te": "trailers",
-    }
-    headers.update(script.zero_trust_headers("/booking/api/v1/get-session"))
-
-    payload = {
-        "currency": "VND",
-        "adultCount": 1,
-        "childCount": 0,
-        "infantCount": 0,
-        "departurePlace": dep_airport,
-        "arrival": arr_airport,
-        "requestId": request_id,
-    }
-
-    http_utils = getattr(script, "_WebScript__http_utils")
-    timeout = getattr(script, "_WebScript__timeout")
-    response = http_utils.post(
-        url=f"https://vietjet-api.vietjetair.com/booking/api/v1/get-session?requestId={request_id}",
-        headers=headers,
-        data=payload,
-        timeout=timeout,
-    )
-
-    if response.status != 200:
-        body = _response_text(response)
-        raise RuntimeError(f"get-session HTTP {response.status}: {body[:1000]}")
-
-    response_data = response.to_dict()
-    session_id = response_data.get("sessionId")
-    if not session_id:
-        raise RuntimeError(f"get-session 未返回 sessionId: {response_data}")
+    session_id = script.get_seesion(request_id, dep_airport, arr_airport)
 
     return VJSessionCache().save(
         dep_airport=dep_airport,
@@ -539,7 +483,7 @@ def _warm_one_session(
         request_id=request_id,
         device_uuid=getattr(script, "_WebScript__vj_device_uuid"),
         zero_trust_config=getattr(script, "_WebScript__zero_trust_config"),
-        session_exp_in=response_data.get("sessionExpIn"),
+        session_exp_in=script.x_session_exp_in,
     )
 
 
