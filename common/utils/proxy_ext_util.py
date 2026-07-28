@@ -1,22 +1,22 @@
 from typing import Any, Optional
 
 from common.model.proxy_Info_model import ProxyInfoModel
-
+from common.errors.service_error import ServiceError, ServiceStateEnum
 
 def proxy_info_from_ext(ext: Optional[dict[str, Any]]) -> ProxyInfoModel:
     proxy_data = ext.get("proxy") if isinstance(ext, dict) else None
     if isinstance(proxy_data, ProxyInfoModel):
         return proxy_data.model_copy(deep=True)
     if not isinstance(proxy_data, dict):
-        raise ValueError("缺少 ext.proxy 代理参数")
+        raise ServiceError(ServiceStateEnum.BUSINESS_ERROR,"缺少 ext.proxy 代理参数")
 
     host = _clean(proxy_data.get("host"))
     port = proxy_data.get("port")
     if not host or port is None:
-        raise ValueError("ext.proxy 缺少 host/port")
+        raise ServiceError(ServiceStateEnum.BUSINESS_ERROR,"ext.proxy 缺少 host/port")
     format_value = _clean(proxy_data.get("format"))
     if not format_value:
-        raise ValueError("ext.proxy 缺少 format")
+        raise ServiceError(ServiceStateEnum.BUSINESS_ERROR,"ext.proxy 缺少 format")
 
     session_time = proxy_data.get("sessionTime") or proxy_data.get("session_time")
     sess_id = proxy_data.get("sessId") or proxy_data.get("sess_id")

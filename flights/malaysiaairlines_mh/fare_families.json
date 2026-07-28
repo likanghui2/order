@@ -1,0 +1,2587 @@
+{
+  "BASEKAN": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKAU": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKBD": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKCN": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKGB": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKHK": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKIN": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKKR": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKLK": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKMV": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKMYZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKNP": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKNZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKQA": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKTW": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASEKWW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Basic"
+  },
+  "BASIC": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "BASICKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Value"
+  },
+  "BASICMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Basic"
+  },
+  "BASICMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Value"
+  },
+  "BASICNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASICSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Basic"
+  },
+  "BASICTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "BASSPMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Basic"
+  },
+  "BASSPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Value"
+  },
+  "BSBCSPMY": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "BSBCSPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "BSBCSPSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "BSFXSPKLSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "BSFXSPMY": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "BSFXSPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "BSPPSPMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "BSPPSPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "BSSAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BSSMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BSSNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BSSSPMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BSSSPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "BSSTSPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "65",
+    "tag": "Business Suite"
+  },
+  "BSSTSPSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "65",
+    "tag": "Business Suite"
+  },
+  "BSSTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BUSBCCAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCMV": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCMY": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBCCWW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSBUJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "50",
+    "tag": "Business Suite"
+  },
+  "BUSFXXAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXKLSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXMV": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXMY": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "BUSFXXWW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BUSINESS": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Flex"
+  },
+  "BUSMILAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILMYJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSMILTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Enrich Base"
+  },
+  "BUSPPRAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPPRTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSPROMO": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Basic"
+  },
+  "BUSSBUMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "65",
+    "tag": "Business Suite"
+  },
+  "BUSSSMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSSMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "55",
+    "tag": "Business Suite"
+  },
+  "BUSSTWW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Business Suite"
+  },
+  "BXSPMYZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "BXSPSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "CSDAN": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDAU": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDBD": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDCN": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDGB": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDHK": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDIN": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDKR": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDLK": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDMV": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDMYZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDNP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDNZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDQA": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDSPMYZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "CSDSPSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "CSDTW": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "CSDWW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Codeshare"
+  },
+  "ECOATRFY": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Codeshare"
+  },
+  "ECOBASEKMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "25",
+    "tag": "Economy Basic"
+  },
+  "ECOBXSPMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "ECOCSDMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Codeshare"
+  },
+  "ECOCSDSPMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "ECOFLSPMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "ECOFLXXYMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "ECOJETFY": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Codeshare"
+  },
+  "ECOLETIMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "ECOLGSPMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "FFTPZ1": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "MHflypass"
+  },
+  "FIRSTCLAGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "First Class Flex"
+  },
+  "FIRSTCLAMY": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "First Class Flex"
+  },
+  "FIRSTCLAWW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "First Class Flex"
+  },
+  "FLESPMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Flex"
+  },
+  "FLESPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "FLEX": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Flex"
+  },
+  "FLEXMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLEXSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Flex"
+  },
+  "FLEXTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLSPKLSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "FLSPMYZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "FLXXYAN": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYAU": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYBD": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYCN": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYGB": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYHK": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYIN": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYKLSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYKR": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYLK": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYMV": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYMYZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYNP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYNZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYQA": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYTW": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Flex"
+  },
+  "FLXXYWW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Flex"
+  },
+  "LETIAN": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIAU": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIBD": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETICN": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIGB": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIHK": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIIN": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIKR": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETILK": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIMV": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIMYZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETINP": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETINZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIQA": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETISG": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETITW": {
+    "cabin_bag": "7",
+    "checkin_bag": "20",
+    "tag": "Economy Value"
+  },
+  "LETIWW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Value"
+  },
+  "LGSPMYZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "LGSPSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "PROMO": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Promo"
+  },
+  "PROMOKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Promo"
+  },
+  "PROMOMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "PROMOMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Promo"
+  },
+  "PROMONP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMONZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROMOSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "PROMOTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "20",
+    "tag": "Economy Promo"
+  },
+  "PROSPMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Promo"
+  },
+  "PROSPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Promo"
+  },
+  "SMART": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Smart"
+  },
+  "SMARTAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Smart"
+  },
+  "SMARTKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "SMARTMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "SMARTNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMARTTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Smart"
+  },
+  "SMASPMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "SMASPMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Basic"
+  },
+  "STBUSKLSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STFLEXKLSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUBASICMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKAN": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKAU": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKBD": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKCN": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKGB": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKHK": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKIN": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKKR": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKLK": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKMV": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKNP": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKNZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKQA": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKTW": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBKZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUBUPRAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRMV": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRMY": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUPRZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUBUSAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSMV": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSMY": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSSG": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUBUSZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUCDSAN": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSAU": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSBD": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSCN": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSGB": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSHK": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSIN": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSKR": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSLK": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSMV": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSNP": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSNZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSQA": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSTW": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUCDSZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Codeshare"
+  },
+  "STUFIAN": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIAU": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIBD": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFICN": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIEXIMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIHK": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIIN": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIKR": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFILK": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIMV": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFINP": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFINZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIQA": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFISG": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFITB": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFITW": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUFIZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUJFXAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "60",
+    "tag": "Business Flex"
+  },
+  "STUJFXNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJFXTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Flex"
+  },
+  "STUJSTAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STUJSTTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "50",
+    "tag": "Business Basic"
+  },
+  "STULIETMY": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTAN": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTAU": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTBD": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTCN": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTGB": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTHK": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTIN": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTKR": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTLK": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTMV": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTNP": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTNZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTQA": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTSG": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTTW": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STULTZZ": {
+    "cabin_bag": "7",
+    "checkin_bag": "30",
+    "tag": "Economy Value"
+  },
+  "STUYBCAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Basic"
+  },
+  "STUYBCKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Value"
+  },
+  "STUYBCMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Basic"
+  },
+  "STUYBCMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Value"
+  },
+  "STUYBCNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYBCSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Basic"
+  },
+  "STUYBCTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "35",
+    "tag": "Economy Basic"
+  },
+  "STUYFXAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Flex"
+  },
+  "STUYFXMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYFXSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Flex"
+  },
+  "STUYFXTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Flex"
+  },
+  "STUYPRAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Promo"
+  },
+  "STUYPRKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Promo"
+  },
+  "STUYPRMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Promo"
+  },
+  "STUYPRMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Promo"
+  },
+  "STUYPRNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYPRSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Promo"
+  },
+  "STUYPRTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "30",
+    "tag": "Economy Promo"
+  },
+  "STUYSTAN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Smart"
+  },
+  "STUYSTAU": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTBD": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTCN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTGB": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTHK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTIN": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTJP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Smart"
+  },
+  "STUYSTKR": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTLK": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTMYJP": {
+    "cabin_bag": "7",
+    "checkin_bag": "45",
+    "tag": "Economy Basic"
+  },
+  "STUYSTMYSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTMYZZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "45",
+    "tag": "Economy Basic"
+  },
+  "STUYSTNP": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTNZ": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTQA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTSA": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  },
+  "STUYSTTW": {
+    "cabin_bag": "2 X 7 ",
+    "checkin_bag": "40",
+    "tag": "Economy Smart"
+  }
+}
