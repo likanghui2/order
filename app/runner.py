@@ -9,8 +9,9 @@ from typing import Any, Callable, Optional
 from common.model.proxy_Info_model import ProxyInfoModel
 from common.utils import log_util
 
+from .dingtalk import DingTalkNotificationError, build_downgrade_match_message, send_text_notification
 from .source_registry import module_for_source
-from .store import TaskStore
+from .store import ACTIVE, TaskStore, evaluate_downgrade_match, is_downgrade_task_data
 
 
 LOG = log_util.LogUtil("sqliteShamRunner")
@@ -124,6 +125,7 @@ class LocalRunner:
             task_callable = self._load_task(task["source"], task["task_type"])
             result = task_callable(payload)
             parsed = self._parse_result(result)
+            downgrade_outcome = self._downgrade_outcome(task, parsed)
             self.store.finish_attempt(
                 task_id=task_id,
                 attempt_no=attempt_no,
@@ -131,10 +133,66 @@ class LocalRunner:
                 message=str(parsed.get("message") or ""),
                 result=parsed,
                 duration_seconds=time.perf_counter() - start,
+                downgrade_outcome=downgrade_outcome,
             )
         except Exception as exc:
             LOG.error({"taskId": task_id, "executionTaskId": execution_task_id, "error": str(exc)}, "本地执行异常")
             self.store.fail_attempt(task_id, attempt_no, f"本地执行异常: {exc}", time.perf_counter() - start)
+
+    def _downgrade_outcome(
+        self,
+        task: dict[str, Any],
+        parsed: dict[str, Any],
+    ) -> Optional[dict[str, Any]]:
+        task_data = task.get("task_data") or {}
+        if task.get("task_type") != "search" or not is_downgrade_task_data(task_data):
+            return None
+        match = evaluate_downgrade_match(parsed, task_data, task.get("source") or "")
+        notification: dict[str, Any] = {"sent": False, "state": "notMatched"}
+        if not match.get("matched"):
+            return {"match": match, "notification": notification}
+
+        current = self.store.get_task(task.get("task_id") or "")
+        if not current or current.get("status") != ACTIVE:
+            notification = {
+                "sent": False,
+                "state": "cancelled",
+                "message": "任务已暂停或停止，未发送钉钉通知",
+            }
+            return {"match": match, "notification": notification}
+
+        config = self.store.get_dingtalk_config()
+        webhook_url = config.get("webhook_url") or ""
+        if not webhook_url:
+            notification = {
+                "sent": False,
+                "state": "missingConfig",
+                "error": "未配置钉钉机器人 Webhook",
+            }
+            return {"match": match, "notification": notification}
+        content = build_downgrade_match_message(
+            task_id=task.get("task_id") or "",
+            source=task.get("source") or "",
+            task_data=task_data,
+            match=match,
+        )
+        try:
+            notification = {
+                **send_text_notification(
+                    webhook_url,
+                    content,
+                    secret=config.get("secret") or "",
+                ),
+                "state": "sent",
+                "sentAt": time.time(),
+            }
+        except DingTalkNotificationError as exc:
+            notification = {
+                "sent": False,
+                "state": "failed",
+                "error": str(exc),
+            }
+        return {"match": match, "notification": notification}
 
     def _load_task(self, source: str, task_type: str) -> Callable[[dict[str, Any]], Any]:
         source = source.upper()

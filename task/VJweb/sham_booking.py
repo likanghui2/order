@@ -38,14 +38,14 @@ def _sham_booking(self, sham_booking_data: RequestShamBookingTaskDataModel,
     def _search_and_validate(web_service, adult_count):
         # web_service.initialize_session()
 
-        if web_service.get_seesion_cached(
-                departure_place=sham_booking_data.dep_airport,
-                arrival=sham_booking_data.arr_airport,
-        ):
-            LOG.info(f'使用缓存会话')
-        else:
-            LOG.info(f'新建会话')
-            web_service.get_seesion(departure_place=sham_booking_data.dep_airport,
+        # if web_service.get_seesion_cached(
+        #         departure_place=sham_booking_data.dep_airport,
+        #         arrival=sham_booking_data.arr_airport,
+        # ):
+        #     LOG.info(f'使用缓存会话')
+        # else:
+        #     LOG.info(f'新建会话')
+        web_service.get_seesion(departure_place=sham_booking_data.dep_airport,
                                     arrival=sham_booking_data.arr_airport, )
         journey_list = web_service.search(
             dep_airport=sham_booking_data.dep_airport,

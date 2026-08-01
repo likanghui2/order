@@ -860,6 +860,9 @@ class WebScript:
             # if response.status == 403:
             #     raise ServiceError(ServiceStateEnum.ROBOT_CHECK)
             if response.status in [429, 503, 403]:
+                if response.status == 403:
+                    if response.headers.get("X-Security-Reason") == 'Policy Violation - Restricted Route':
+                        raise ServiceError(ServiceStateEnum.BUSINESS_ERROR, "官网航线停止售卖，请人工核对")
                 # retry_after = response.headers.get("Retry-After", 15)
                 # try:
                 #     retry_after = int(float(retry_after))

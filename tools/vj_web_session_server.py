@@ -47,7 +47,9 @@ CACHE_VERSION = "v4"  # 缓存版本升级为 v4，防止与旧 List 结构冲�
 # ==========================================
 _STOP_EVENT = threading.Event()
 _STATE_LOCK = threading.RLock()
+_WARMER_LOCK = threading.RLock()
 _WARMER_THREAD: Optional[threading.Thread] = None
+_WARMER_ENABLED = False
 _STATE: dict[str, Any] = {
     "running": False,
     "lastRoutes": [],
@@ -390,32 +392,56 @@ def get_vj_session(
 # 6. 后台预热线程逻辑
 # ==========================================
 def _start_warmer() -> None:
+    global _WARMER_ENABLED
+    with _WARMER_LOCK:
+        _WARMER_ENABLED = True
+        if _WARMER_THREAD and _WARMER_THREAD.is_alive():
+            return
+        _launch_warmer_locked()
+
+
+def _stop_warmer() -> None:
+    global _WARMER_ENABLED
+    with _WARMER_LOCK:
+        _WARMER_ENABLED = False
+        _STOP_EVENT.set()
+        thread = _WARMER_THREAD
+    if thread and thread.is_alive() and thread is not threading.current_thread():
+        thread.join(timeout=5)
+
+
+def warmer_status() -> dict[str, bool]:
+    with _WARMER_LOCK:
+        return {"running": bool(_WARMER_THREAD and _WARMER_THREAD.is_alive())}
+
+
+def _launch_warmer_locked() -> None:
     global _WARMER_THREAD
-    if _WARMER_THREAD and _WARMER_THREAD.is_alive():
-        return
     _STOP_EVENT.clear()
     _WARMER_THREAD = threading.Thread(target=_warmer_loop, name="vj-web-session-warmer", daemon=True)
     _WARMER_THREAD.start()
 
 
-def _stop_warmer() -> None:
-    _STOP_EVENT.set()
-    if _WARMER_THREAD and _WARMER_THREAD.is_alive():
-        _WARMER_THREAD.join(timeout=5)
-
-
 def _warmer_loop() -> None:
-    _set_state(running=True, lastError=None)
-    _log(f"VJ session server started on {HOST}:{PORT}")
-    while not _STOP_EVENT.is_set():
-        try:
-            _warm_pass()
-            _set_state(lastError=None, lastWarmAt=int(time.time()))
-        except Exception as exc:
-            _set_state(lastError=str(exc))
-            _log(f"warm pass failed: {exc}")
-        _STOP_EVENT.wait(max(0.1, INTERVAL_SECONDS))
-    _set_state(running=False)
+    global _WARMER_THREAD
+    try:
+        _set_state(running=True, lastError=None)
+        _log(f"VJ session server started on {HOST}:{PORT}")
+        while not _STOP_EVENT.is_set():
+            try:
+                _warm_pass()
+                _set_state(lastError=None, lastWarmAt=int(time.time()))
+            except Exception as exc:
+                _set_state(lastError=str(exc))
+                _log(f"warm pass failed: {exc}")
+            _STOP_EVENT.wait(max(0.1, INTERVAL_SECONDS))
+    finally:
+        _set_state(running=False)
+        with _WARMER_LOCK:
+            if _WARMER_THREAD is threading.current_thread():
+                _WARMER_THREAD = None
+            if _WARMER_ENABLED and _WARMER_THREAD is None:
+                _launch_warmer_locked()
 
 
 def _warm_pass() -> None:
@@ -430,6 +456,8 @@ def _warm_pass() -> None:
     proxy_info = _proxy_from_db(DB_PATH, SOURCE)
     cache = VJSessionCache()
     for dep_airport, arr_airport in routes:
+        if _STOP_EVENT.is_set():
+            break
         _warm_route(cache, proxy_info, dep_airport, arr_airport)
 
 
@@ -447,6 +475,8 @@ def _warm_route(
         return
 
     for _ in range(TARGET_SIZE - current_size):
+        if _STOP_EVENT.is_set():
+            break
         try:
             cached = _warm_one_session(
                 proxy_info=_clone_proxy(proxy_info),

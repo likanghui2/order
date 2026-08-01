@@ -56,7 +56,7 @@ RELOAD_DIRS=app,static,task
 
 `LOCAL_SHAM_CONCURRENCY=0` 表示不限制本地并发；设置为 `3`、`5` 等正整数时，才会限制同时执行数量。
 `RELOAD=1` 表示开启热更新，默认监听 `app`、`static` 和 `task`；如需关闭，用 `RELOAD=0 /bin/bash run-local-sham.sh`。
-`LOCAL_SHAM_LOG_TO_FILE=1` 会把本地服务 stdout/stderr 追加写入 `logs/local-sham.log`，供 Grafana Loki 采集；如需关闭，用 `LOCAL_SHAM_LOG_TO_FILE=0`。
+`LOCAL_SHAM_LOG_TO_FILE=1` 会把本地服务 stdout/stderr 追加写入 `logs/local-sham.log`，供本地排错使用；如需关闭，用 `LOCAL_SHAM_LOG_TO_FILE=0`。
 
 ## VietJet Web Session 预热
 
@@ -92,31 +92,6 @@ GET /api/vj-web-session?depAirport=SGN&arrAirport=CAN
 - `VJ_WEB_SESSION_CACHE_TTL_SECONDS=300`：航司未返回 `sessionExpIn` 时的兜底保留时间；正常优先使用 `sessionExpIn` 作为过期时间。
 - `VJ_WEB_SESSION_CACHE_MAX_SIZE=80`：每条航线最多缓存多少个。
 - `VJ_WEB_SESSION_CACHE_ENABLED=0`：关闭 session 池读写。
-
-## 技术日志排查
-
-技术排查独立使用 Grafana Loki，不和业务页面混在一起。先启动业务服务，让日志写入 `logs/local-sham.log`，再启动日志栈：
-
-```bash
-/bin/bash /Users/a1234/Desktop/rakdFlightLocalShamBooking/run-loki-logs.sh
-```
-
-启动前需要先打开 Docker Desktop。
-
-默认地址：
-
-```text
-http://localhost:3000/d/sl-booking-logs
-```
-
-Grafana 已预置 Loki 数据源和 `SL Booking 技术日志` Dashboard。常用 LogQL：
-
-```logql
-{job="sl-booking"} | json
-{job="sl-booking"} | json | level="ERROR"
-{job="sl-booking"} | json | taskId="VJAPP-SGN-CAN-VJ3908-20260729-24704"
-{job="sl-booking"} | json | executionTaskId="VJAPP-SGN-CAN-VJ3908-20260729-24704-RUN0001"
-```
 
 ## SQLite 损坏处理
 

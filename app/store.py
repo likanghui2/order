@@ -13,6 +13,11 @@ PAUSED = "PAUSED"
 STOPPED = "STOPPED"
 DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT = 20
 SETTING_PRECHECK_RESOURCE_MISS_LIMIT = "precheck_resource_miss_limit"
+SETTING_NINE_G_TRACE_PRODUCER_ENABLED = "nine_g_trace_producer_enabled"
+SETTING_VJ_WEB_SESSION_WARMER_ENABLED = "vj_web_session_warmer_enabled"
+SETTING_DINGTALK_WEBHOOK_URL = "downgrade_dingtalk_webhook_url"
+SETTING_DINGTALK_SECRET = "downgrade_dingtalk_secret"
+DOWNGRADE_TASK_MODE = "cabinDowngrade"
 PRECHECK_RESOURCE_MISS_REASONS = {"flightNotFound", "cabinNotFound", "priceNotFound", "noFlightData"}
 PRECHECK_IGNORED_MISS_REASONS = {"searchFailed"}
 
@@ -444,6 +449,7 @@ class TaskStore:
         message: str,
         result: Any,
         duration_seconds: float,
+        downgrade_outcome: Optional[dict[str, Any]] = None,
     ) -> None:
         now = time.time()
         success = status_code == 200
@@ -463,6 +469,7 @@ class TaskStore:
             task_status = row["status"]
             task_data = self._decode_json(row["task_data"]) or {}
             is_search_precheck = _is_search_precheck(row)
+            is_downgrade_task = is_downgrade_task_data(task_data) and row["task_type"] == "search"
             run_count = int(row["run_count"])
             max_runs = row["max_runs"]
             final_status = task_status
@@ -539,6 +546,29 @@ class TaskStore:
                             "releasedCount": released_count,
                             "blockedCount": blocked_count,
                             "childrenBlocked": children_blocked,
+                        }
+                    },
+                )
+            elif is_downgrade_task:
+                outcome = downgrade_outcome or {}
+                match_result = _as_dict(outcome.get("match")) or evaluate_downgrade_match(
+                    result,
+                    task_data,
+                    row["source"],
+                )
+                notification = _as_dict(outcome.get("notification"))
+                notification_sent = bool(notification.get("sent"))
+                if task_status == ACTIVE and match_result.get("matched") and notification_sent:
+                    final_status = STOPPED
+                    next_run_at = None
+                    finished_at = now
+                display_message = _downgrade_display_message(match_result, notification)
+                display_result = _with_local_result_meta(
+                    result,
+                    {
+                        "downgrade": {
+                            **match_result,
+                            "notification": notification,
                         }
                     },
                 )
@@ -691,8 +721,45 @@ class TaskStore:
 
     def get_app_settings(self) -> dict[str, Any]:
         with self._connect() as conn:
+            return self._app_settings(conn)
+
+    def get_dingtalk_config(self) -> dict[str, str]:
+        with self._connect() as conn:
             return {
-                SETTING_PRECHECK_RESOURCE_MISS_LIMIT: self._precheck_resource_miss_limit(conn),
+                "webhook_url": self._text_setting(conn, SETTING_DINGTALK_WEBHOOK_URL),
+                "secret": self._text_setting(conn, SETTING_DINGTALK_SECRET),
+            }
+
+    def update_dingtalk_config(
+        self,
+        *,
+        webhook_url: Optional[str] = None,
+        secret: Optional[str] = None,
+        clear_webhook: bool = False,
+        clear_secret: bool = False,
+    ) -> dict[str, str]:
+        now = time.time()
+        with self._lock, self._connect() as conn:
+            updates = {
+                SETTING_DINGTALK_WEBHOOK_URL: "" if clear_webhook else webhook_url,
+                SETTING_DINGTALK_SECRET: "" if clear_secret else secret,
+            }
+            for key, value in updates.items():
+                if value is None:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO app_settings (key, value, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        value = excluded.value,
+                        updated_at = excluded.updated_at
+                    """,
+                    (key, str(value).strip(), now),
+                )
+            return {
+                "webhook_url": self._text_setting(conn, SETTING_DINGTALK_WEBHOOK_URL),
+                "secret": self._text_setting(conn, SETTING_DINGTALK_SECRET),
             }
 
     def update_app_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -713,9 +780,49 @@ class TaskStore:
                     """,
                     (SETTING_PRECHECK_RESOURCE_MISS_LIMIT, str(value), now),
                 )
-            return {
-                SETTING_PRECHECK_RESOURCE_MISS_LIMIT: self._precheck_resource_miss_limit(conn),
-            }
+            for key in (
+                SETTING_NINE_G_TRACE_PRODUCER_ENABLED,
+                SETTING_VJ_WEB_SESSION_WARMER_ENABLED,
+            ):
+                if key not in payload:
+                    continue
+                value = "1" if _boolean_or_default(payload.get(key), True) else "0"
+                conn.execute(
+                    """
+                    INSERT INTO app_settings (key, value, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        value = excluded.value,
+                        updated_at = excluded.updated_at
+                    """,
+                    (key, value, now),
+                )
+            return self._app_settings(conn)
+
+    def _app_settings(self, conn: sqlite3.Connection) -> dict[str, Any]:
+        return {
+            SETTING_PRECHECK_RESOURCE_MISS_LIMIT: self._precheck_resource_miss_limit(conn),
+            SETTING_NINE_G_TRACE_PRODUCER_ENABLED: self._boolean_setting(
+                conn,
+                SETTING_NINE_G_TRACE_PRODUCER_ENABLED,
+                True,
+            ),
+            SETTING_VJ_WEB_SESSION_WARMER_ENABLED: self._boolean_setting(
+                conn,
+                SETTING_VJ_WEB_SESSION_WARMER_ENABLED,
+                True,
+            ),
+        }
+
+    @staticmethod
+    def _boolean_setting(conn: sqlite3.Connection, key: str, default: bool) -> bool:
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+        return _boolean_or_default(row["value"] if row else None, default)
+
+    @staticmethod
+    def _text_setting(conn: sqlite3.Connection, key: str) -> str:
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+        return str(row["value"] if row else "").strip()
 
     def _precheck_resource_miss_limit(self, conn: sqlite3.Connection) -> int:
         row = conn.execute(
@@ -1040,6 +1147,87 @@ def _is_precheck_controlled_child(row: sqlite3.Row) -> bool:
     )
 
 
+def is_downgrade_task_data(task_data: Any) -> bool:
+    data = _as_dict(task_data)
+    ext = _as_dict(data.get("ext"))
+    return str(ext.get("taskMode") or "").strip() == DOWNGRADE_TASK_MODE
+
+
+def evaluate_search_match(result: Any, task_data: dict[str, Any], source: str = "") -> dict[str, Any]:
+    return _search_precheck_result(result, task_data, source)
+
+
+def evaluate_downgrade_match(result: Any, task_data: dict[str, Any], source: str = "") -> dict[str, Any]:
+    """Evaluate a downgrade watcher without changing sham-booking precheck semantics."""
+    del source
+    result_data = _as_dict(result)
+    target_flight_number = _normalize_match_text(task_data.get("flightNumber"))
+    target_price = _safe_float(task_data.get("targetPrice"))
+    base = {
+        "flightNumber": target_flight_number,
+        "targetPrice": target_price,
+        "targetPriceDisplay": _format_precheck_price(target_price) if target_price is not None else "",
+    }
+    if _safe_int(result_data.get("status")) != 200:
+        message = str(result_data.get("message") or "刷降舱查询失败")
+        reason = "noFlightData" if "无航班数据" in message else "searchFailed"
+        return {**base, "matched": False, "reason": reason, "message": message}
+    if not target_flight_number:
+        return {**base, "matched": False, "reason": "missingTarget", "message": "缺少目标航班号"}
+    if target_price is None or target_price <= 0:
+        return {**base, "matched": False, "reason": "missingTarget", "message": "缺少有效的目标价格"}
+
+    data = _as_dict(result_data.get("data"))
+    journeys = _as_list(data.get("journeys")) or _as_list(result_data.get("journeys"))
+    flight_found = False
+    available_prices: list[float] = []
+    for journey in journeys:
+        journey_data = _as_dict(journey)
+        if not _journey_has_flight_number(journey_data, target_flight_number):
+            continue
+        flight_found = True
+        available_prices.extend(_journey_price_candidates(journey_data))
+
+    if not flight_found:
+        return {
+            **base,
+            "matched": False,
+            "reason": "flightNotFound",
+            "message": f"未找到航班 {target_flight_number}",
+        }
+    if not available_prices:
+        return {
+            **base,
+            "matched": False,
+            "reason": "priceNotFound",
+            "availablePrices": [],
+            "message": f"航班 {target_flight_number} 已找到，但未获取到价格",
+        }
+
+    minimum_price = min(available_prices)
+    if minimum_price <= target_price:
+        return {
+            **base,
+            "matched": True,
+            "reason": "matched",
+            "price": minimum_price,
+            "priceDisplay": _format_precheck_price(minimum_price),
+            "message": "匹配成功",
+        }
+    return {
+        **base,
+        "matched": False,
+        "reason": "priceAboveTarget",
+        "price": minimum_price,
+        "priceDisplay": _format_precheck_price(minimum_price),
+        "availablePrices": sorted(set(available_prices)),
+        "message": (
+            f"航班 {target_flight_number} 已找到，当前最低价 {_format_precheck_price(minimum_price)}，"
+            f"高于目标价格 {_format_precheck_price(target_price)}"
+        ),
+    }
+
+
 def _search_precheck_result(result: Any, task_data: dict[str, Any], source: str = "") -> dict[str, Any]:
     result_data = _as_dict(result)
     if _safe_int(result_data.get("status")) != 200:
@@ -1161,6 +1349,20 @@ def _search_precheck_result(result: Any, task_data: dict[str, Any], source: str 
         "cabin": target_cabin,
         "message": f"未找到航班 {target_flight_number}",
     }
+
+
+def _downgrade_display_message(
+    match_result: dict[str, Any],
+    notification: dict[str, Any],
+) -> str:
+    if not match_result.get("matched"):
+        return f"刷降舱未命中：{match_result.get('message') or '未匹配目标航班和价格'}"
+    target = match_result.get("targetPriceDisplay") or "-"
+    actual = match_result.get("priceDisplay") or "-"
+    if notification.get("sent"):
+        return f"刷降舱命中：航班 {match_result.get('flightNumber') or '-'}，目标价 {target}，命中价 {actual}，钉钉通知已发送，任务自动停止"
+    error = notification.get("error") or notification.get("message") or "钉钉通知未发送"
+    return f"刷降舱命中：航班 {match_result.get('flightNumber') or '-'}，目标价 {target}，命中价 {actual}；{error}，任务将继续重试"
 
 
 def _precheck_display_message(
@@ -1529,6 +1731,21 @@ def _safe_int(value: Any) -> Optional[int]:
 def _positive_int_or_default(value: Any, default: int) -> int:
     parsed = _safe_int(value)
     return parsed if parsed and parsed > 0 else default
+
+
+def _boolean_or_default(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
 
 
 def _safe_float(value: Any) -> Optional[float]:

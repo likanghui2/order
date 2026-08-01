@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 import time
 import uuid
 import csv
@@ -19,9 +20,16 @@ from pydantic import BaseModel, Field
 
 from tools import nine_g_app_trace_token_producer, vj_web_session_server
 from tools.vj_web_session_server import get_vj_session
+from .background_services import BackgroundServiceManager
 from .runner import LocalRunner
 from .source_registry import module_for_source, normalize_source, supported_sources
-from .store import ACTIVE, DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT, TaskStore
+from .store import (
+    ACTIVE,
+    DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT,
+    DOWNGRADE_TASK_MODE,
+    TaskStore,
+    is_downgrade_task_data,
+)
 
 
 APP_DIR = Path(__file__).resolve().parents[1]
@@ -67,6 +75,27 @@ class SourceProxyPayload(BaseModel):
 
 class AppSettingsPayload(BaseModel):
     precheck_resource_miss_limit: Optional[int] = Field(default=None, ge=1, le=1000, alias="precheckResourceMissLimit")
+    nine_g_trace_producer_enabled: Optional[bool] = Field(default=None, alias="nineGTraceProducerEnabled")
+    vj_web_session_warmer_enabled: Optional[bool] = Field(default=None, alias="vjWebSessionWarmerEnabled")
+
+
+class DingTalkConfigPayload(BaseModel):
+    webhook_url: Optional[str] = Field(default=None, alias="webhookUrl")
+    secret: Optional[str] = None
+    clear_webhook: bool = Field(default=False, alias="clearWebhook")
+    clear_secret: bool = Field(default=False, alias="clearSecret")
+
+
+class DowngradeTaskPayload(BaseModel):
+    task_id: Optional[str] = Field(default=None, alias="taskId")
+    source: str
+    dep_airport: str = Field(alias="depAirport")
+    arr_airport: str = Field(alias="arrAirport")
+    dep_date: str = Field(alias="depDate")
+    flight_number: str = Field(alias="flightNumber")
+    target_price: float = Field(gt=0, alias="targetPrice")
+    currency_code: str = Field(alias="currencyCode")
+    interval_seconds: int = Field(default=30, ge=1, le=86400, alias="intervalSeconds")
 
 
 store = TaskStore(DB_PATH)
@@ -75,19 +104,19 @@ runner = LocalRunner(
     concurrency=int(os.getenv("LOCAL_SHAM_CONCURRENCY", "0")),
     poll_interval=float(os.getenv("LOCAL_SHAM_POLL_INTERVAL", "0.5")),
 )
+background_services = BackgroundServiceManager(nine_g_app_trace_token_producer, vj_web_session_server)
+settings_update_lock = threading.RLock()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    nine_g_app_trace_token_producer._start_producer()
-    vj_web_session_server._start_warmer()
-    runner.start()
     try:
+        background_services.apply(store.get_app_settings())
+        runner.start()
         yield
     finally:
         runner.stop()
-        vj_web_session_server._stop_warmer()
-        nine_g_app_trace_token_producer._stop_producer()
+        background_services.stop_all()
 
 
 app = FastAPI(title="Local Sham Booking", lifespan=lifespan)
@@ -108,12 +137,17 @@ def health():
         "dbPath": str(DB_PATH),
         "runner": runner.stats(),
         "nineGTraceProducer": nine_g_app_trace_token_producer.producer_status(),
+        "backgroundServices": background_services.status(),
     }
 
 
 @app.get("/api/sources")
 def sources():
-    return {"sources": supported_sources()}
+    all_sources = supported_sources()
+    return {
+        "sources": all_sources,
+        "searchSources": [source for source in all_sources if module_for_source(source, "search")],
+    }
 
 
 @app.get("/api/settings")
@@ -126,7 +160,34 @@ def save_settings(request: AppSettingsPayload):
     payload: dict[str, Any] = {}
     if request.precheck_resource_miss_limit is not None:
         payload["precheck_resource_miss_limit"] = request.precheck_resource_miss_limit
-    return _settings_response(store.update_app_settings(payload))
+    if request.nine_g_trace_producer_enabled is not None:
+        payload["nine_g_trace_producer_enabled"] = request.nine_g_trace_producer_enabled
+    if request.vj_web_session_warmer_enabled is not None:
+        payload["vj_web_session_warmer_enabled"] = request.vj_web_session_warmer_enabled
+    with settings_update_lock:
+        settings = store.update_app_settings(payload)
+        background_services.apply(settings)
+    return _settings_response(settings)
+
+
+@app.get("/api/downgrade-settings")
+def get_downgrade_settings():
+    return _dingtalk_config_response(store.get_dingtalk_config())
+
+
+@app.put("/api/downgrade-settings")
+def save_downgrade_settings(request: DingTalkConfigPayload):
+    webhook_url = _clean_optional(request.webhook_url)
+    secret = _clean_optional(request.secret)
+    if webhook_url and not webhook_url.startswith(("https://", "http://")):
+        raise HTTPException(status_code=400, detail="钉钉 Webhook 地址必须以 http:// 或 https:// 开头")
+    config = store.update_dingtalk_config(
+        webhook_url=webhook_url or None,
+        secret=secret or None,
+        clear_webhook=request.clear_webhook,
+        clear_secret=request.clear_secret,
+    )
+    return _dingtalk_config_response(config)
 
 
 @app.get("/api/source-proxies")
@@ -243,8 +304,26 @@ def get_vj_web_session(
 
 
 @app.get("/api/tasks")
-def list_tasks():
-    return store.list_tasks()
+def list_tasks(include_downgrade: bool = Query(default=False, alias="includeDowngrade")):
+    tasks = store.list_tasks()
+    if include_downgrade:
+        return tasks
+    return [task for task in tasks if not is_downgrade_task_data(task.get("task_data"))]
+
+
+@app.get("/api/downgrade-tasks")
+def list_downgrade_tasks():
+    return [task for task in store.list_tasks() if is_downgrade_task_data(task.get("task_data"))]
+
+
+@app.post("/api/downgrade-tasks")
+def create_downgrade_task(request: DowngradeTaskPayload):
+    payload = _normalize_downgrade_payload(request)
+    if store.get_task(payload["task_id"]):
+        raise HTTPException(status_code=409, detail="taskId 已存在")
+    if not store.get_dingtalk_config().get("webhook_url"):
+        raise HTTPException(status_code=400, detail="请先配置钉钉机器人 Webhook")
+    return store.create_task(payload)
 
 
 @app.get("/api/pnrs")
@@ -502,6 +581,66 @@ def _normalize_payload(request: TaskPayload, fallback_task_id: Optional[str] = N
         "interval_seconds": request.interval_seconds,
         "max_runs": request.max_runs,
         "first_run_at": request.first_run_at,
+        "status": ACTIVE,
+    }
+
+
+def _normalize_downgrade_payload(request: DowngradeTaskPayload) -> dict[str, Any]:
+    source = normalize_source(request.source)
+    if not source or not module_for_source(source, "search"):
+        raise HTTPException(status_code=400, detail=f"数据源 {source or '-'} 不支持航班价格查询")
+    dep_airport = _clean_optional(request.dep_airport).upper()
+    arr_airport = _clean_optional(request.arr_airport).upper()
+    dep_date_digits = "".join(ch for ch in _clean_optional(request.dep_date) if ch.isdigit())
+    flight_number = _clean_optional(request.flight_number).upper()
+    target_price = float(request.target_price)
+    currency_code = _clean_optional(request.currency_code).upper()
+    missing = [
+        label
+        for value, label in (
+            (dep_airport, "出发地"),
+            (arr_airport, "目的地"),
+            (dep_date_digits, "日期"),
+            (flight_number, "航班号"),
+            (currency_code, "币种"),
+        )
+        if not value
+    ]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"缺少或无效字段：{'、'.join(missing)}")
+    try:
+        datetime.strptime(dep_date_digits, "%Y%m%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="日期格式应为 YYYY-MM-DD 或 YYYYMMDD") from exc
+    task_data = {
+        "callbackData": {},
+        "freightRateType": "PT",
+        "depAirport": dep_airport,
+        "arrAirport": arr_airport,
+        "depDate": _format_dep_date(dep_date_digits),
+        "retDate": "",
+        "adultNumber": 1,
+        "childNumber": 0,
+        "currencyCode": currency_code,
+        "flightNumber": flight_number,
+        "cabin": "",
+        "priceInterval": "",
+        "targetPrice": target_price,
+        "cabinLevel": "Y",
+        "privateCode": [],
+        "ext": {
+            "taskMode": DOWNGRADE_TASK_MODE,
+            "notificationChannel": "dingtalk",
+        },
+    }
+    generated_id = f"DOWN-{_generated_task_id(task_data, source)}"
+    return {
+        "task_id": _clean_optional(request.task_id) or generated_id,
+        "source": source,
+        "task_type": "search",
+        "task_data": task_data,
+        "interval_seconds": request.interval_seconds,
+        "max_runs": None,
         "status": ACTIVE,
     }
 
@@ -1009,6 +1148,23 @@ def _proxy_response(item: dict[str, Any]) -> dict[str, Any]:
 def _settings_response(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "precheckResourceMissLimit": item.get("precheck_resource_miss_limit") or DEFAULT_PRECHECK_RESOURCE_MISS_LIMIT,
+        "nineGTraceProducerEnabled": bool(item.get("nine_g_trace_producer_enabled", True)),
+        "vjWebSessionWarmerEnabled": bool(item.get("vj_web_session_warmer_enabled", True)),
+    }
+
+
+def _dingtalk_config_response(item: dict[str, Any]) -> dict[str, Any]:
+    webhook_url = _clean_optional(item.get("webhook_url"))
+    parsed = urlparse(webhook_url) if webhook_url else None
+    webhook_display = ""
+    if parsed and parsed.scheme and parsed.netloc:
+        webhook_display = f"{parsed.scheme}://{parsed.netloc}{parsed.path or ''}"
+        if parsed.query:
+            webhook_display += "?••••••"
+    return {
+        "webhookConfigured": bool(webhook_url),
+        "webhookDisplay": webhook_display,
+        "secretConfigured": bool(_clean_optional(item.get("secret"))),
     }
 
 

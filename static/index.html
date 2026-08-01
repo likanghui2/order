@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>智能航空压位任务管理系统</title>
-    <link rel="stylesheet" href="/static/styles.css?v=44" />
+    <link rel="stylesheet" href="/static/styles.css?v=53" />
   </head>
   <body>
     <div class="tool-window">
@@ -20,6 +20,7 @@
       <nav class="tabs" aria-label="功能导航">
         <button data-view="config" type="button">配置管理</button>
         <button class="active" data-view="tasks" type="button">压位任务</button>
+        <button data-view="downgrade" type="button">刷降舱管理</button>
         <button data-view="pnr" type="button">PNR管理</button>
         <div class="tabs-spacer"></div>
         <span id="health" class="health-chip">连接中</span>
@@ -60,17 +61,60 @@
               <h2>Source 映射</h2>
               <div id="configSources" class="source-grid"></div>
             </section>
-            <section class="config-block">
+            <section class="config-block runtime-policy-block">
               <div class="section-head compact-head">
-                <h2>预检策略</h2>
+                <h2>运行策略</h2>
                 <button id="settingsSaveBtn" class="text-button" type="button">保存配置</button>
               </div>
               <div class="settings-grid">
-                <label>
+                <label class="settings-number-field">
                   <span>连续未释放次数</span>
                   <input id="precheckMissLimit" type="number" min="1" max="1000" />
                 </label>
+                <div class="background-service-settings" aria-label="后台预热服务">
+                  <label class="service-toggle-row">
+                    <span class="service-toggle-copy">
+                      <span class="service-toggle-title">
+                        <strong>9GAPP Trace Token</strong>
+                        <span id="nineGTraceProducerStatus" class="service-status" role="status" aria-live="polite">待确认</span>
+                      </span>
+                      <small id="nineGTraceProducerDescription">为活跃 9GAPP 任务预先生产搜索 Token</small>
+                    </span>
+                    <input id="nineGTraceProducerEnabled" type="checkbox" role="switch" aria-label="启用 9GAPP Trace Token 生产器" aria-describedby="nineGTraceProducerDescription nineGTraceProducerStatus" />
+                  </label>
+                  <label class="service-toggle-row">
+                    <span class="service-toggle-copy">
+                      <span class="service-toggle-title">
+                        <strong>VJWEB Session 预热</strong>
+                        <span id="vjWebSessionWarmerStatus" class="service-status" role="status" aria-live="polite">待确认</span>
+                      </span>
+                      <small id="vjWebSessionWarmerDescription">根据 VJWEB 航线提前生成并缓存 Session</small>
+                    </span>
+                    <input id="vjWebSessionWarmerEnabled" type="checkbox" role="switch" aria-label="启用 VJWEB Session 预热器" aria-describedby="vjWebSessionWarmerDescription vjWebSessionWarmerStatus" />
+                  </label>
+                </div>
               </div>
+            </section>
+            <section class="config-block downgrade-notification-config" aria-labelledby="downgradeNotificationTitle">
+              <div class="section-head compact-head">
+                <div class="downgrade-heading-copy">
+                  <h2 id="downgradeNotificationTitle">刷降舱钉钉通知</h2>
+                  <span id="downgradeWebhookStatus" class="config-state-badge unconfigured">未配置</span>
+                </div>
+                <span id="downgradeWebhookDisplay" class="masked-config-value">命中前请先配置群机器人 Webhook</span>
+              </div>
+              <form id="downgradeSettingsForm" class="downgrade-settings-form" autocomplete="off">
+                <label>
+                  <span>机器人 Webhook</span>
+                  <input id="downgradeWebhookUrl" type="password" placeholder="粘贴 Webhook；留空保持原配置" autocomplete="new-password" />
+                </label>
+                <label>
+                  <span>加签密钥（可选）</span>
+                  <input id="downgradeWebhookSecret" type="password" placeholder="SEC...；留空保持原配置" autocomplete="new-password" />
+                </label>
+                <button id="downgradeSettingsSaveBtn" class="primary-lite" type="submit">保存通知配置</button>
+                <button id="downgradeSettingsClearBtn" class="text-button danger" type="button">清除配置</button>
+              </form>
             </section>
             <section class="config-block proxy-config-block">
               <div class="section-head compact-head">
@@ -388,6 +432,95 @@
         </div>
         </section>
 
+        <section id="downgradeView" class="view-page downgrade-view hidden" data-view="downgrade">
+          <div class="page-title downgrade-page-title">
+            <div>
+              <p>Cabin Watcher</p>
+              <h1>刷降舱管理</h1>
+            </div>
+            <span>钉钉机器人由配置管理统一提供</span>
+          </div>
+
+          <section class="downgrade-task-panel" aria-labelledby="downgradeCreateTitle">
+            <div class="section-head compact-head">
+              <div class="downgrade-heading-copy">
+                <h2 id="downgradeCreateTitle">新建监控任务</h2>
+                <span>目标航班最低可用价格不高于目标价格时通知</span>
+              </div>
+            </div>
+            <form id="downgradeForm" class="downgrade-form" novalidate>
+              <label class="required-field">
+                <span>数据源</span>
+                <select id="downgradeSource" required></select>
+              </label>
+              <label class="required-field">
+                <span>出发地</span>
+                <input id="downgradeDepAirport" maxlength="3" placeholder="SGN" required />
+              </label>
+              <label class="required-field">
+                <span>目的地</span>
+                <input id="downgradeArrAirport" maxlength="3" placeholder="HAN" required />
+              </label>
+              <label class="required-field">
+                <span>日期</span>
+                <input id="downgradeDepDate" placeholder="YYYY-MM-DD" required />
+              </label>
+              <label class="required-field">
+                <span>航班号</span>
+                <input id="downgradeFlightNumber" placeholder="VJ123" required />
+              </label>
+              <label class="required-field">
+                <span>目标价格</span>
+                <input id="downgradeTargetPrice" type="number" min="0.01" step="0.01" placeholder="1500" required />
+              </label>
+              <label class="required-field">
+                <span>币种</span>
+                <input id="downgradeCurrencyCode" maxlength="3" placeholder="VND" required />
+              </label>
+              <label class="required-field">
+                <span>查询间隔</span>
+                <input id="downgradeIntervalSeconds" type="number" min="1" max="86400" value="30" required />
+              </label>
+              <button class="primary-action downgrade-add-button" type="submit">
+                <span class="btn-icon" aria-hidden="true">+</span>
+                <span>添加任务</span>
+              </button>
+            </form>
+          </section>
+
+          <section class="downgrade-list-panel" aria-labelledby="downgradeListTitle">
+            <div class="section-head">
+              <h2 id="downgradeListTitle">当前任务</h2>
+              <div class="downgrade-list-actions">
+                <span id="downgradeTaskCount">0 个任务</span>
+                <button id="downgradeRefreshBtn" class="text-button" type="button">刷新</button>
+              </div>
+            </div>
+            <div class="downgrade-table-wrap">
+              <table class="downgrade-table">
+                <thead>
+                  <tr>
+                    <th>任务 ID</th>
+                    <th>Source</th>
+                    <th>航线</th>
+                    <th>日期</th>
+                    <th>航班号</th>
+                    <th>监控目标</th>
+                    <th>间隔</th>
+                    <th>执行</th>
+                    <th>最后结果</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="downgradeTaskRows">
+                  <tr><td colspan="11" class="empty-row">暂无刷降舱任务。</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
         <section id="pnrView" class="view-page pnr-view hidden" data-view="pnr">
           <div class="section-head">
             <h1>PNR管理</h1>
@@ -534,6 +667,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/app.js?v=49"></script>
+    <script src="/static/app.js?v=53"></script>
   </body>
 </html>

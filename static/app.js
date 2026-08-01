@@ -1,5 +1,7 @@
 const state = {
   tasks: [],
+  downgradeTasks: [],
+  downgradeSettings: null,
   pnrs: [],
   pnrTotal: 0,
   pnrPage: 1,
@@ -12,7 +14,9 @@ const state = {
   proxyConfigs: [],
   selectedTaskId: "",
   sources: [],
+  searchSources: [],
   settings: null,
+  settingsFormDirty: false,
   health: null,
   activeView: "tasks",
   expandedTaskIds: new Set(),
@@ -77,7 +81,23 @@ const els = {
   configTaskCount: document.getElementById("configTaskCount"),
   configSources: document.getElementById("configSources"),
   precheckMissLimit: document.getElementById("precheckMissLimit"),
+  nineGTraceProducerEnabled: document.getElementById("nineGTraceProducerEnabled"),
+  vjWebSessionWarmerEnabled: document.getElementById("vjWebSessionWarmerEnabled"),
+  nineGTraceProducerStatus: document.getElementById("nineGTraceProducerStatus"),
+  vjWebSessionWarmerStatus: document.getElementById("vjWebSessionWarmerStatus"),
   settingsSaveBtn: document.getElementById("settingsSaveBtn"),
+  downgradeSettingsForm: document.getElementById("downgradeSettingsForm"),
+  downgradeWebhookUrl: document.getElementById("downgradeWebhookUrl"),
+  downgradeWebhookSecret: document.getElementById("downgradeWebhookSecret"),
+  downgradeWebhookStatus: document.getElementById("downgradeWebhookStatus"),
+  downgradeWebhookDisplay: document.getElementById("downgradeWebhookDisplay"),
+  downgradeSettingsClearBtn: document.getElementById("downgradeSettingsClearBtn"),
+  downgradeForm: document.getElementById("downgradeForm"),
+  downgradeSource: document.getElementById("downgradeSource"),
+  downgradeTargetPrice: document.getElementById("downgradeTargetPrice"),
+  downgradeTaskRows: document.getElementById("downgradeTaskRows"),
+  downgradeTaskCount: document.getElementById("downgradeTaskCount"),
+  downgradeRefreshBtn: document.getElementById("downgradeRefreshBtn"),
   sourceProxyRows: document.getElementById("sourceProxyRows"),
   proxyImportBtn: document.getElementById("proxyImportBtn"),
   proxyExportBtn: document.getElementById("proxyExportBtn"),
@@ -224,7 +244,14 @@ async function api(path, options = {}) {
   });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || response.statusText);
+    let message = text || response.statusText;
+    try {
+      const data = JSON.parse(text);
+      message = data.detail || data.message || message;
+    } catch {
+      // Keep the plain response body when the API did not return JSON.
+    }
+    throw new Error(message);
   }
   return response.json();
 }
@@ -272,8 +299,13 @@ function buildPayloadFromForm() {
 async function loadSources() {
   const data = await api("/api/sources");
   state.sources = data.sources || [];
+  state.searchSources = data.searchSources || state.sources;
   els.source.innerHTML = `<option value=""></option>${state.sources.map((source) => `<option value="${source}">${source}</option>`).join("")}`;
   els.source.value = "";
+  if (els.downgradeSource) {
+    els.downgradeSource.innerHTML = `<option value=""></option>${state.searchSources.map((source) => `<option value="${source}">${source}</option>`).join("")}`;
+    els.downgradeSource.value = "";
+  }
   renderPnrFilterOptions();
   await loadProxyConfigs();
   renderConfig();
@@ -287,6 +319,7 @@ async function loadHealth() {
 
 async function loadSettings() {
   state.settings = await api("/api/settings");
+  state.settingsFormDirty = false;
   renderConfig();
 }
 
@@ -301,6 +334,21 @@ async function loadTasks() {
     clearSelectedTask();
   }
   renderConfig();
+}
+
+async function loadDowngradeSettings() {
+  state.downgradeSettings = await api("/api/downgrade-settings");
+  renderDowngradeSettings();
+}
+
+async function loadDowngradeTasks() {
+  state.downgradeTasks = await api("/api/downgrade-tasks");
+  renderDowngradeTasks();
+  renderConfig();
+}
+
+async function loadDowngradePage() {
+  await loadDowngradeTasks();
 }
 
 async function loadProxyConfigs() {
@@ -335,8 +383,12 @@ function switchView(view) {
   if (view === "pnr") {
     loadPnrs().catch(showError);
   }
+  if (view === "downgrade") {
+    loadDowngradePage().catch(showError);
+  }
   if (view === "config") {
     renderConfig();
+    loadDowngradeSettings().catch(showError);
     if (!state.proxyConfigs.length) {
       loadProxyConfigs().catch(showError);
     }
@@ -349,13 +401,213 @@ function renderConfig() {
   els.configDbPath.textContent = state.health?.dbPath || "-";
   els.configRunner.textContent = runner ? `${runner.running}/${runnerLimitText(runner)}` : "-";
   els.configPoll.textContent = runner ? `${runner.pollInterval} 秒` : "-";
-  els.configTaskCount.textContent = `${state.tasks.length} 个任务`;
-  if (els.precheckMissLimit && state.settings && document.activeElement !== els.precheckMissLimit) {
+  els.configTaskCount.textContent = `${state.tasks.length + state.downgradeTasks.length} 个任务`;
+  const populateSettingsForm = state.settings && !state.settingsFormDirty;
+  if (els.precheckMissLimit && populateSettingsForm) {
     els.precheckMissLimit.value = state.settings.precheckResourceMissLimit || 20;
   }
+  if (els.nineGTraceProducerEnabled && populateSettingsForm) {
+    els.nineGTraceProducerEnabled.checked = state.settings.nineGTraceProducerEnabled !== false;
+  }
+  if (els.vjWebSessionWarmerEnabled && populateSettingsForm) {
+    els.vjWebSessionWarmerEnabled.checked = state.settings.vjWebSessionWarmerEnabled !== false;
+  }
+  renderBackgroundServiceStatus(
+    els.nineGTraceProducerStatus,
+    state.health?.backgroundServices?.nineGTraceProducer?.running,
+  );
+  renderBackgroundServiceStatus(
+    els.vjWebSessionWarmerStatus,
+    state.health?.backgroundServices?.vjWebSessionWarmer?.running,
+  );
   els.configSources.innerHTML = state.sources.length
     ? state.sources.map((source) => `<span class="source-pill">${escapeHtml(source)}</span>`).join("")
     : "-";
+}
+
+function renderBackgroundServiceStatus(element, running) {
+  if (!element) return;
+  const nextText = running === true ? "运行中" : running === false ? "已停止" : "待确认";
+  element.classList.toggle("is-running", running === true);
+  element.classList.toggle("is-stopped", running === false);
+  if (element.textContent !== nextText) element.textContent = nextText;
+}
+
+function renderDowngradeSettings() {
+  if (!els.downgradeWebhookStatus) return;
+  const settings = state.downgradeSettings || {};
+  const configured = Boolean(settings.webhookConfigured);
+  els.downgradeWebhookStatus.textContent = configured ? "已配置" : "未配置";
+  els.downgradeWebhookStatus.classList.toggle("unconfigured", !configured);
+  els.downgradeWebhookDisplay.textContent = configured
+    ? `${settings.webhookDisplay || "Webhook 已保存"}${settings.secretConfigured ? " · 已加签" : " · 未加签"}`
+    : "命中前请先配置群机器人 Webhook";
+  els.downgradeWebhookUrl.placeholder = configured ? "已配置；留空保持原配置" : "粘贴群机器人 Webhook";
+  els.downgradeWebhookSecret.placeholder = settings.secretConfigured ? "已配置；留空保持原密钥" : "SEC...；没有加签可留空";
+}
+
+async function saveDowngradeSettings(event) {
+  event.preventDefault();
+  const webhookUrl = els.downgradeWebhookUrl.value.trim();
+  const secret = els.downgradeWebhookSecret.value.trim();
+  if (!state.downgradeSettings?.webhookConfigured && !webhookUrl) {
+    els.downgradeWebhookUrl.classList.add("is-invalid");
+    els.downgradeWebhookUrl.focus();
+    toast("请填写钉钉机器人 Webhook");
+    return;
+  }
+  state.downgradeSettings = await api("/api/downgrade-settings", {
+    method: "PUT",
+    body: JSON.stringify({
+      ...(webhookUrl ? { webhookUrl } : {}),
+      ...(secret ? { secret } : {}),
+    }),
+  });
+  els.downgradeWebhookUrl.value = "";
+  els.downgradeWebhookSecret.value = "";
+  els.downgradeWebhookUrl.classList.remove("is-invalid");
+  renderDowngradeSettings();
+  toast("钉钉通知配置已保存");
+}
+
+async function clearDowngradeSettings() {
+  const confirmed = await showConfirmDialog({
+    title: "清除钉钉配置",
+    message: "清除后，已运行的刷降舱任务即使命中也无法发送通知，并会继续重试。",
+    confirmText: "清除配置",
+  });
+  if (!confirmed) return;
+  state.downgradeSettings = await api("/api/downgrade-settings", {
+    method: "PUT",
+    body: JSON.stringify({ clearWebhook: true, clearSecret: true }),
+  });
+  els.downgradeWebhookUrl.value = "";
+  els.downgradeWebhookSecret.value = "";
+  renderDowngradeSettings();
+  toast("钉钉通知配置已清除");
+}
+
+function validateDowngradeForm() {
+  const fields = [
+    ["downgradeSource", "数据源"],
+    ["downgradeDepAirport", "出发地"],
+    ["downgradeArrAirport", "目的地"],
+    ["downgradeDepDate", "日期"],
+    ["downgradeFlightNumber", "航班号"],
+    ["downgradeTargetPrice", "目标价格"],
+    ["downgradeCurrencyCode", "币种"],
+    ["downgradeIntervalSeconds", "查询间隔"],
+  ];
+  const errors = [];
+  let firstInvalid = null;
+  fields.forEach(([id, label]) => {
+    const element = $(id);
+    let invalid = !value(id);
+    if (id === "downgradeDepDate" && !/^\d{8}$/.test(normalizeDate(value(id)))) invalid = true;
+    if (id === "downgradeIntervalSeconds" && Number(value(id)) < 1) invalid = true;
+    if (id === "downgradeTargetPrice" && Number(value(id)) <= 0) invalid = true;
+    element.classList.toggle("is-invalid", invalid);
+    if (invalid) {
+      errors.push(label);
+      if (!firstInvalid) firstInvalid = element;
+    }
+  });
+  if (firstInvalid) firstInvalid.focus();
+  return errors;
+}
+
+function buildDowngradePayload() {
+  return {
+    source: value("downgradeSource"),
+    depAirport: value("downgradeDepAirport").toUpperCase(),
+    arrAirport: value("downgradeArrAirport").toUpperCase(),
+    depDate: normalizeDate(value("downgradeDepDate")),
+    flightNumber: value("downgradeFlightNumber").toUpperCase(),
+    targetPrice: Number(value("downgradeTargetPrice")),
+    currencyCode: value("downgradeCurrencyCode").toUpperCase(),
+    intervalSeconds: Number(value("downgradeIntervalSeconds")),
+  };
+}
+
+async function submitDowngradeTask(event) {
+  event.preventDefault();
+  const errors = validateDowngradeForm();
+  if (errors.length) {
+    toast(`请检查：${errors.join("、")}`);
+    return;
+  }
+  await api("/api/downgrade-tasks", {
+    method: "POST",
+    body: JSON.stringify(buildDowngradePayload()),
+  });
+  els.downgradeForm.reset();
+  $("downgradeIntervalSeconds").value = "30";
+  els.downgradeSource.value = "";
+  toast("刷降舱任务已添加");
+  await loadDowngradeTasks();
+}
+
+function renderDowngradeTasks() {
+  if (!els.downgradeTaskRows) return;
+  els.downgradeTaskCount.textContent = `${state.downgradeTasks.length} 个任务`;
+  if (!state.downgradeTasks.length) {
+    els.downgradeTaskRows.innerHTML = `<tr><td colspan="11" class="empty-row">暂无刷降舱任务，填写上方条件后添加。</td></tr>`;
+    return;
+  }
+  els.downgradeTaskRows.innerHTML = state.downgradeTasks.map(renderDowngradeTaskRow).join("");
+}
+
+function renderDowngradeTaskRow(task) {
+  const data = task.task_data || {};
+  const target = data.targetPrice == null
+    ? "-"
+    : `≤ ${data.targetPrice}${data.currencyCode ? ` ${data.currencyCode}` : ""}`;
+  const resultText = task.last_message || "等待首次查询";
+  const toggleAction = task.status === "ACTIVE" ? "pause" : "resume";
+  const toggleLabel = task.status === "ACTIVE" ? "暂停" : "开始";
+  const toggleIcon = task.status === "ACTIVE" ? "pause" : "play";
+  return `
+    <tr data-downgrade-task-id="${escapeAttr(task.task_id)}">
+      <td>${renderTaskIdCell(task.task_id)}</td>
+      <td>${escapeHtml(task.source || "-")}</td>
+      <td>${escapeHtml(`${data.depAirport || "-"} → ${data.arrAirport || "-"}`)}</td>
+      <td>${escapeHtml(formatDepDate(data.depDate))}</td>
+      <td>${escapeHtml(data.flightNumber || "-")}</td>
+      <td>${escapeHtml(target || "-")}</td>
+      <td>${escapeHtml(task.interval_seconds || "-")} 秒</td>
+      <td>${escapeHtml(task.run_count || 0)}</td>
+      <td class="downgrade-result-cell" title="${escapeAttr(resultText)}">${escapeHtml(resultText)}</td>
+      <td>${renderStatusBadge(task)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="action-button" data-downgrade-action="${toggleAction}" data-task-id="${escapeAttr(task.task_id)}">
+            ${renderIcon(toggleIcon)}<span>${toggleLabel}</span>
+          </button>
+          <button class="action-button" data-downgrade-action="run-now" data-task-id="${escapeAttr(task.task_id)}">
+            ${renderIcon("play")}<span>立即</span>
+          </button>
+          <button class="action-button danger" data-downgrade-action="delete" data-task-id="${escapeAttr(task.task_id)}">
+            ${renderIcon("trash")}<span>删除</span>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+async function handleDowngradeTaskAction(action, taskId) {
+  if (action === "delete") {
+    const confirmed = await showConfirmDialog({
+      title: "删除刷降舱任务",
+      message: `确认删除任务 ${taskId} 及其执行记录？`,
+      confirmText: "删除",
+    });
+    if (!confirmed) return;
+  }
+  const method = action === "delete" ? "DELETE" : "POST";
+  const suffix = action === "delete" ? "" : `/${action}`;
+  await api(`/api/tasks/${encodeURIComponent(taskId)}${suffix}`, { method });
+  toast(action === "run-now" ? "已安排立即执行" : "操作已提交");
+  await loadDowngradeTasks();
 }
 
 function renderProxyConfigs() {
@@ -447,12 +699,33 @@ async function saveSettings() {
     toast("连续未释放次数必须是正整数");
     return;
   }
-  state.settings = await api("/api/settings", {
-    method: "PUT",
-    body: JSON.stringify({ precheckResourceMissLimit: missLimit }),
-  });
-  renderConfig();
-  toast("配置已保存");
+  const originalLabel = els.settingsSaveBtn.textContent;
+  const settingsControls = [
+    els.precheckMissLimit,
+    els.nineGTraceProducerEnabled,
+    els.vjWebSessionWarmerEnabled,
+  ];
+  els.settingsSaveBtn.disabled = true;
+  els.settingsSaveBtn.textContent = "保存中";
+  settingsControls.forEach((control) => { control.disabled = true; });
+  try {
+    state.settings = await api("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        precheckResourceMissLimit: missLimit,
+        nineGTraceProducerEnabled: els.nineGTraceProducerEnabled.checked,
+        vjWebSessionWarmerEnabled: els.vjWebSessionWarmerEnabled.checked,
+      }),
+    });
+    state.settingsFormDirty = false;
+    await loadHealth();
+    renderConfig();
+    toast("运行配置已保存");
+  } finally {
+    settingsControls.forEach((control) => { control.disabled = false; });
+    els.settingsSaveBtn.disabled = false;
+    els.settingsSaveBtn.textContent = originalLabel;
+  }
 }
 
 async function handleProxyAction(action, source, row) {
@@ -1065,6 +1338,9 @@ function renderTaskActions(task) {
       <button class="action-button" data-action="copy" data-task-id="${escapeHtml(task.task_id)}">
         ${renderIcon("copy")}<span>复制</span>
       </button>
+      <button class="action-button" data-action="downgrade" data-task-id="${escapeHtml(task.task_id)}" title="复制参数到刷降舱新建任务">
+        ${renderIcon("watch")}<span>刷降舱</span>
+      </button>
       <button class="action-button danger" data-action="delete" data-task-id="${escapeHtml(task.task_id)}">
         ${renderIcon("trash")}<span>删除</span>
       </button>
@@ -1570,6 +1846,11 @@ async function handleTaskAction(action, taskId) {
     if (task) copyTaskToForm(task);
     return;
   }
+  if (action === "downgrade") {
+    const task = state.tasks.find((item) => item.task_id === taskId);
+    if (task) copyTaskToDowngradeForm(task);
+    return;
+  }
   if (action === "delete") {
     const confirmed = await showConfirmDialog({
       title: "删除任务",
@@ -1653,6 +1934,26 @@ function copyTaskToForm(task) {
   $("callData").value = data.callbackData?.callData || "";
   $("usePassport").checked = inferPassport(data);
   toast("已复制到上方表单");
+}
+
+function copyTaskToDowngradeForm(task) {
+  const data = task.task_data || {};
+  const booking = data.bookingConfig || {};
+  els.downgradeSource.value = task.source || "";
+  $("downgradeDepAirport").value = data.depAirport || "";
+  $("downgradeArrAirport").value = data.arrAirport || "";
+  $("downgradeDepDate").value = formatDepDate(data.depDate);
+  $("downgradeFlightNumber").value = data.flightNumber || "";
+  els.downgradeTargetPrice.value = "";
+  $("downgradeCurrencyCode").value = booking.currencyCode || data.currencyCode || "";
+  $("downgradeIntervalSeconds").value = task.interval_seconds || 30;
+  els.downgradeForm.querySelectorAll(".is-invalid").forEach((element) => element.classList.remove("is-invalid"));
+  switchView("downgrade");
+  requestAnimationFrame(() => {
+    els.downgradeTargetPrice.focus();
+    els.downgradeTargetPrice.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  toast("已复制任务参数，请填写目标价格后添加");
 }
 
 async function submitTask(event) {
@@ -1751,6 +2052,7 @@ function renderIcon(name) {
     pause: '<path d="M8 5h4v14H8z"></path><path d="M16 5h4v14h-4z"></path>',
     copy: '<path d="M8 8h10v10H8z"></path><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
     trash: '<path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 16h10l1-16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path>',
+    watch: '<path d="M3 12h3l2-4 4 8 2-4h7"></path><circle cx="12" cy="12" r="9"></circle>',
     "chevron-left": '<path d="m15 18-6-6 6-6"></path>',
     "chevron-right": '<path d="m9 18 6-6-6-6"></path>',
   };
@@ -1898,6 +2200,42 @@ function bindEvents() {
   if (els.settingsSaveBtn) {
     els.settingsSaveBtn.addEventListener("click", () => saveSettings().catch(showError));
   }
+  if (els.downgradeSettingsForm) {
+    els.downgradeSettingsForm.addEventListener("submit", (event) => saveDowngradeSettings(event).catch(showError));
+    els.downgradeWebhookUrl.addEventListener("input", () => els.downgradeWebhookUrl.classList.remove("is-invalid"));
+  }
+  if (els.downgradeSettingsClearBtn) {
+    els.downgradeSettingsClearBtn.addEventListener("click", () => clearDowngradeSettings().catch(showError));
+  }
+  if (els.downgradeForm) {
+    els.downgradeForm.addEventListener("submit", (event) => submitDowngradeTask(event).catch(showError));
+    els.downgradeForm.addEventListener("input", (event) => event.target.classList.remove("is-invalid"));
+  }
+  if (els.downgradeSource) {
+    els.downgradeSource.addEventListener("change", () => els.downgradeSource.classList.remove("is-invalid"));
+  }
+  if (els.downgradeRefreshBtn) {
+    els.downgradeRefreshBtn.addEventListener("click", () => loadDowngradePage().catch(showError));
+  }
+  if (els.downgradeTaskRows) {
+    els.downgradeTaskRows.addEventListener("click", (event) => {
+      const copyButton = event.target.closest("button[data-copy-task-id]");
+      if (copyButton) {
+        copyText(copyButton.dataset.copyTaskId, "任务 ID").catch(showError);
+        return;
+      }
+      const actionButton = event.target.closest("button[data-downgrade-action]");
+      if (actionButton) {
+        handleDowngradeTaskAction(actionButton.dataset.downgradeAction, actionButton.dataset.taskId).catch(showError);
+      }
+    });
+  }
+  if (els.precheckMissLimit) {
+    els.precheckMissLimit.addEventListener("input", () => { state.settingsFormDirty = true; });
+  }
+  [els.nineGTraceProducerEnabled, els.vjWebSessionWarmerEnabled].forEach((control) => {
+    if (control) control.addEventListener("change", () => { state.settingsFormDirty = true; });
+  });
   [
     els.taskIdFilter,
     els.taskDepFilter,
@@ -2004,6 +2342,8 @@ async function refreshAll() {
   await loadHealth();
   if (state.activeView === "pnr") {
     renderPnrPagination();
+  } else if (state.activeView === "downgrade") {
+    await loadDowngradeTasks();
   } else {
     await loadTasks();
   }
@@ -2018,6 +2358,7 @@ async function init() {
   bindEvents();
   await loadSources();
   await loadSettings();
+  await loadDowngradeSettings();
   resetFormDefaults();
   await refreshAll();
   setInterval(() => refreshAll().catch(showError), 5000);

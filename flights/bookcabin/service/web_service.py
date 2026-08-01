@@ -64,8 +64,11 @@ class WebService:
         cart_id = ((cart_response.get("data") or {}).get("cartId")
                    or (bundle.ext or {}).get("cartId")
                    or (journey.ext or {}).get("cartId"))
+        print(cart_id)
         if not cart_id:
             raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "cartId")
+        else:
+            raise ServiceError(ServiceStateEnum.DATA_VALIDATION_FAILED, "占位成功")
 
         self.__script.cart_detail(cart_id)
         self.__script.ancillary(cart_id)

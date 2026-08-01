@@ -106,7 +106,6 @@ class DanLiCaptchaUtil:
         }
 
         response = session.post(verify_url + f"?d={host}", headers=headers, json={"f": "gpc"})
-        print(response.text)
         return response.text.strip('"')
 
     def __submit_incapsula_solver(self,incapsula_data: str,verify_url: str,user_agent: str,host: str,session: requests.Session):

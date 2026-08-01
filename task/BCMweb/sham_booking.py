@@ -1,12 +1,14 @@
 from typing import Optional
 
 from common.decorators.task_decorator import task_decorator
+from common.enums.document_type_enum import DocumentTypeEnum
 from common.enums.order_state_enum import OrderStateEnum
 from common.enums.task_type_enum import TaskTypeEnum
 from common.errors.service_error import ServiceError, ServiceStateEnum
 from common.global_variable import GlobalVariable
 from common.model.flight.flight_bundle_model import FlightBundleModel
 from common.model.flight.flight_journey_model import FlightJourneyModel
+from common.model.order.document_info_model import DocumentInfoModel
 from common.model.task.request_sham_booking_task_data_model import RequestShamBookingTaskDataModel
 from common.model.task.response_order_info_model import ResponseOrderInfoModel
 from common.utils import celery_util, log_util
@@ -155,27 +157,42 @@ def main(self,
 
 
 if __name__ == "__main__":
-    main({
-        "taskId": "bcm-sham-booking-demo",
-        "taskType": TaskTypeEnum.SHAM_BOOKING.value,
-        "source": "BCMweb",
-        "taskData": {
-            "depAirport": "KUL",
-            "arrAirport": "CGO",
-            "depDate": "20260729",
-            "flightNumber": "OD692",
-            "cabin": "",
-            "bookingConfig": {
-                "bookRate": 10,
-                "currencyCode": "IDR",
-            },
-            "callbackData": {
-                "callData": "",
-                "callUrl": "",
-            },
-            "ext": {
-                "privateCode": [],
-                "passengerCount":1
-            },
-        },
-    }, ResponseOrderInfoModel())
+    while True:
+        try:
+            main({
+                "taskId": "bcm-sham-booking-demo",
+                "taskType": TaskTypeEnum.SHAM_BOOKING.value,
+                "source": "BCMweb",
+                "taskData": {
+                    "depAirport": "XIY",
+                    "arrAirport": "DMK",
+                    "depDate": "20260803",
+                    "flightNumber": "SL951",
+                    "cabin": "K",
+                    "bookingConfig": {
+                        "bookRate": 10,
+                        "currencyCode": "CNY",
+                    },
+                    "callbackData": {
+                        "callData": "",
+                        "callUrl": "",
+                    },
+                    "ext": {
+                        "privateCode": [],
+                        "passengerCount":1,
+                            "proxy": {
+                                "source": "VJWEB",
+                                "host": "proxy.iproyal.net",
+                                "port": 9000,
+                                "username": "rakdvjweb01",
+                                "password": "rakdvjvj01",
+                                "region": "sg",
+                                "sessId": None,
+                                "sessionTime": 10,
+                                "format": "http://client-{username}_area-{region}_session-{sessId}_life-{sessionTime}:{password}@{host}:{port}"
+                            }
+                        }
+                },
+            }, ResponseOrderInfoModel())
+        except Exception as e:
+            print(e)
