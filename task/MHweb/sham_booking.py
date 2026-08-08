@@ -158,13 +158,13 @@ def main(
             sham_booking_data,
             bundle.seat,
         )
-        # journey, bundle = _search_target(
-        #     service,
-        #     sham_booking_data,
-        #     routes,
-        #     promo_code,
-        #     passenger_count,
-        # )
+        journey, bundle = _search_target(
+            service,
+            sham_booking_data,
+            routes,
+            promo_code,
+            passenger_count,
+        )
         if bundle.seat < passenger_count:
             raise ServiceError(
                 ServiceStateEnum.NO_AVAILABLE_CABIN,
@@ -238,7 +238,7 @@ if __name__ == "__main__":
                 "bookRate": 10,
                 "currencyCode": "MYR",
             },
-            "ext": {"passengerCount": 1,
+            "ext": {"passengerCount": 2,
                 "proxy": {
                     "source": "VJWEB",
                     "host": "proxy.iproyal.net",
