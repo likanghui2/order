@@ -57,6 +57,8 @@ class WebScript:
             timeout=self.__timeout,
         )
         response_json = self.__response_json(response)
+        if response_json.get('code')=='FLIGHT_NOT_FOUND':
+            raise ServiceError(ServiceStateEnum.NO_FLIGHT_DATA)
         self.__check_response(response, response_json)
         return response_json
 
