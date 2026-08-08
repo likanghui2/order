@@ -17,8 +17,8 @@ from ..model.response_info_model import ResponseInfoModel
 class CurlCffiTls(TlsAbstract):
 
     def initialize(self, proxy_info_data: Optional[ProxyInfoModel], **kwargs):
-
-        session = curl_cffi.Session(verify=False, **kwargs)
+        verify = kwargs.pop("verify", False)
+        session = curl_cffi.Session(verify=verify, **kwargs)
 
         if proxy_info_data:
             self.set_proxy_info_data(proxy_info_data)

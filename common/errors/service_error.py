@@ -42,6 +42,8 @@ class ServiceStateEnum(BaseStateEnum):
     ROBOT_CHECK = '机器人验证'
     CLOUD_FLARE_CHECK_FAILURE = 'CloudFlae验证未通过'
     AWS_CHECK_FAILURE = 'AWS验证未通过'
+    INCAPSULA_CHECK_FAILURE = 'Incapsula验证未通过'
+    PX_CHECK_FAILURE = 'PerimeterX验证未通过'
 
 
 class ServiceError(MyBaseError):

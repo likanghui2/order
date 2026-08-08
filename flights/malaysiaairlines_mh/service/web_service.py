@@ -24,7 +24,7 @@ class WebService:
         self._script.initialize_session()
 
     def initialize_security(self):
-        self._script.get_reese84()
+        self._script.reese84()
 
     def initialization(self, currency: str):
         self._script.initialization(currency)

@@ -57,6 +57,7 @@ RELOAD_DIRS=app,static,task
 `LOCAL_SHAM_CONCURRENCY=0` 表示不限制本地并发；设置为 `3`、`5` 等正整数时，才会限制同时执行数量。
 `RELOAD=1` 表示开启热更新，默认监听 `app`、`static` 和 `task`；如需关闭，用 `RELOAD=0 /bin/bash run-local-sham.sh`。
 `LOCAL_SHAM_LOG_TO_FILE=1` 会把本地服务 stdout/stderr 追加写入 `logs/local-sham.log`，供本地排错使用；如需关闭，用 `LOCAL_SHAM_LOG_TO_FILE=0`。
+SLWEB 每次任务只压一笔订单，人数限制为 1-9，不再循环拆分多个 PNR。支付卡沿用原框架方式，通过 Faker 自动生成随机 Visa 卡号、有效期和 CVV，用失败支付响应保留 PNR，不需要配置支付卡环境变量。流程只接受明确失败且同时返回合法 PNR 的响应；如果支付意外成功会按支付异常停止。
 
 ## VietJet Web Session 预热
 

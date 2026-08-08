@@ -1,5 +1,7 @@
 import base64
+import gzip
 import json
+import random
 import re
 import urllib.parse
 import uuid
@@ -12,7 +14,6 @@ from common.tls.curl_cffi_tls import CurlCffiTls
 from common.utils.danli_captcha_util import DanLiCaptchaUtil
 from common.utils.nocaptcha_util import NoCaptchaUtil
 from flights.malaysiaairlines_mh.config import MalaysiaAirlinesConfig
-
 
 API_BASE = "https://api-des.malaysiaairlines.com"
 WEB_BASE = "https://online.malaysiaairlines.com"
@@ -45,12 +46,96 @@ class WebScript:
         return self._currency
 
     def initialize_session(self):
-        self._tls.initialize(self._proxy_info, impersonate="chrome136")
+        self._tls.initialize(self._proxy_info, impersonate="chrome146")
 
     def close(self):
         session = self._tls.get_session()
         if session is not None:
             session.close()
+
+    def __incapsula_get_jwt_token(self, verify_url: str):
+        headers = {
+            "Connection": "keep-alive",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "User-Agent": self._ua,
+            "Accept": "application/json; charset=utf-8",
+            "Content-Type": "text/plain; charset=utf-8",
+            "sec-ch-ua-mobile": "?0",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Accept-Language": "es,en-US;q=0.9,en;q=0.8"
+        }
+
+        response = self._tls.post(url=verify_url, headers=headers, json={"f": "gpc"})
+        return response.to_text().strip('"')
+
+    def reese84(self):
+        try:
+            import requests
+
+            ua_vision = random.randint(145, 145)
+            self._ua = f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{ua_vision}.0.0.0 Safari/537.36"
+            sec_ch_ua = f"\"Not:A-Brand\";v=\"99\", \"Google Chrome\";v=\"{ua_vision}\", \"Chromium\";v=\"{ua_vision}\""
+
+            script_url = REESE84_URL
+
+            headers = {
+                "pragma": "no-cache",
+                "cache-control": "no-cache",
+                "sec-ch-ua-platform": "\"Windows\"",
+                "user-agent": self._ua,
+                "sec-ch-ua": sec_ch_ua,
+                "sec-ch-ua-mobile": "?0",
+                "accept": "*/*",
+                "sec-fetch-site": "same-origin",
+                "sec-fetch-mode": "no-cors",
+                "sec-fetch-dest": "script",
+                "accept-language": "en-US,en;q=0.9",
+            }
+            r = requests.get(url=script_url, headers=headers, timeout=60)
+            incapsula_js = r.text
+
+            captcha_url = f"{script_url}?d=online.malaysiaairlines.com"
+
+            service_url = f'http://156.225.30.65:9994/api/UUEM3XIA/get_reese84V2'
+            KEY = 'UUEM3XIA'
+            headers = {
+                "apiKey": KEY,
+                "Content-Encoding": "gzip",  # 多了这个
+            }
+            json_data = {"captcha_url": captcha_url,
+                         "ua": self._ua,
+                         "incapsula_js": incapsula_js,
+                         "jwtToken": self.__incapsula_get_jwt_token(captcha_url),
+                         # "appVersion": appVersion,  # 多了这个
+                         # "ua": UA,  # 多了这个
+                         }
+            json_data = gzip.compress(json.dumps(json_data).encode('utf-8'))  # 添加这一行代码进行压缩
+            resp = requests.post(service_url, headers=headers, data=json_data)  # json=json_data变为data=json_data
+            submit_data_84 = resp.json()['result']
+
+            headers = {
+                "sec-ch-ua-platform": "\"Windows\"",
+                "user-agent": self._ua,
+                # "sec-ch-ua": self.,
+                "sec-ch-ua-mobile": "?0",
+                "accept": "*/*",
+                "sec-fetch-site": "same-origin",
+                "sec-fetch-mode": "no-cors",
+                "sec-fetch-dest": "script",
+                "accept-language": 'en-US,en;q=0.9'
+            }
+            response = self._tls.post(
+                url=captcha_url,
+                headers=headers,
+                data=submit_data_84,
+                timeout=10
+            )
+            self._x_d_token = response.to_dict()['token']
+        except Exception as e:
+            raise ServiceError(ServiceStateEnum.API_RESPONSE_EXCEPTION)
 
     def get_reese84(self):
         proxy = (
@@ -134,13 +219,13 @@ class WebScript:
         self._currency = currency
 
     def search_flight(
-        self,
-        airport_data: list[tuple[str, str, str]],
-        adult_count: int,
-        child_count: int,
-        requested_bound: int = 0,
-        promo_code: str = "",
-        selected_bound_id: Optional[str] = None,
+            self,
+            airport_data: list[tuple[str, str, str]],
+            adult_count: int,
+            child_count: int,
+            requested_bound: int = 0,
+            promo_code: str = "",
+            selected_bound_id: Optional[str] = None,
     ) -> dict:
         travelers = []
         for count, code in ((adult_count, "ADT"), (child_count, "CHD")):
@@ -236,9 +321,9 @@ class WebScript:
         )
         data = result.get("data") or {}
         token = (
-            data.get("generated_pass_UUID")
-            or data.get("token")
-            or data.get("response")
+                data.get("generated_pass_UUID")
+                or data.get("token")
+                or data.get("response")
         )
         if not token:
             raise ServiceError(ServiceStateEnum.API_RESPONSE_FAILED)

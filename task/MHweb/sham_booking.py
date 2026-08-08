@@ -147,7 +147,7 @@ def main(
     promo_code = _promo_code(sham_booking_data.ext or {})
 
     try:
-        _, initial_bundle = _search_target(
+        journey, bundle = _search_target(
             service,
             sham_booking_data,
             routes,
@@ -156,15 +156,15 @@ def main(
         )
         passenger_count = _passenger_count(
             sham_booking_data,
-            initial_bundle.seat,
+            bundle.seat,
         )
-        journey, bundle = _search_target(
-            service,
-            sham_booking_data,
-            routes,
-            promo_code,
-            passenger_count,
-        )
+        # journey, bundle = _search_target(
+        #     service,
+        #     sham_booking_data,
+        #     routes,
+        #     promo_code,
+        #     passenger_count,
+        # )
         if bundle.seat < passenger_count:
             raise ServiceError(
                 ServiceStateEnum.NO_AVAILABLE_CABIN,
@@ -175,7 +175,7 @@ def main(
         if session_cache.can_reuse_service(error):
             session_cache.cache_service(service, cached)
         raise
-
+    LOG.info(f'舱位：{bundle.cabin} 座位数：{bundle.seat}')
     LOG.info("MH航班/套餐/舱位校验通过，进入生单链路，会话不再回收缓存")
 
     passengers = ShamBookingUtil.build_sham_passenger_info(
@@ -232,7 +232,7 @@ if __name__ == "__main__":
             "depAirport": "KUL",
             "arrAirport": "BKI",
             "depDate": "20260901",
-            "flightNumber": "MH26121",
+            "flightNumber": "MH2640",
             "cabin": "",
             "bookingConfig": {
                 "bookRate": 10,

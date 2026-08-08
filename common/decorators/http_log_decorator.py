@@ -7,6 +7,7 @@ Description:
     HTTP日志实现
 """
 import functools
+import inspect
 import json
 import time
 import traceback
@@ -25,11 +26,20 @@ def http_log_decorator():
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
             start_time = time.time()
+            signature = inspect.signature(func)
+            call_arguments = dict(signature.bind_partial(
+                self,
+                *args,
+                **kwargs,
+            ).arguments)
+            for name, parameter in signature.parameters.items():
+                if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+                    call_arguments.update(call_arguments.pop(name, {}))
             log_data = {
-                'url': kwargs['url'],
+                'url': call_arguments['url'],
                 'method': func.__name__,
-                'headers': kwargs['headers'],
-                'data': kwargs.get('data'),
+                'headers': call_arguments['headers'],
+                'data': call_arguments.get('data'),
             }
 
             if GlobalVariable.OUTPUT_HTTP_LOG:
